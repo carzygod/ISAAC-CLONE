@@ -1,0 +1,5 @@
+{
+  "name": "Pixel Dungeon Crawler",
+  "description": "A high-performance 2D Roguelike engine featuring procedural dungeons, entity component systems, and modular item buffs.",
+  "requestFramePermissions": []
+}

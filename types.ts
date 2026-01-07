@@ -19,6 +19,8 @@ export enum EnemyType {
   CHASER = 'CHASER',       // Runs at player
   SHOOTER = 'SHOOTER',     // Stationary, shoots
   DASHER = 'DASHER',       // Dashes periodically
+  TANK = 'TANK',           // Slow, High HP, Knockback resistant
+  ORBITER = 'ORBITER',     // Circles the player
   BOSS = 'BOSS'            // Big HP, bullet hell
 }
 
@@ -42,7 +44,10 @@ export enum ItemType {
   DAMAGE_UP = 'DAMAGE_UP',
   FIRE_RATE_UP = 'FIRE_RATE_UP',
   SHOT_SPEED_UP = 'SHOT_SPEED_UP',
-  MULTI_SHOT = 'MULTI_SHOT'
+  RANGE_UP = 'RANGE_UP',           // New
+  BULLET_SIZE_UP = 'BULLET_SIZE_UP', // New
+  TRIPLE_SHOT = 'TRIPLE_SHOT',     // New
+  QUAD_SHOT = 'QUAD_SHOT'          // New
 }
 
 // Interfaces
@@ -54,6 +59,8 @@ export interface Stats {
   fireRate: number; // Cooldown in frames
   shotSpeed: number;
   range: number;
+  shotSpread: number; // 1 = normal, 3 = triple, 4 = quad
+  bulletScale: number; // Multiplier for size
 }
 
 export interface Rect {
@@ -84,6 +91,7 @@ export interface EnemyEntity extends Entity {
   maxHp: number;
   aiState: 'IDLE' | 'CHASE' | 'ATTACK' | 'COOLDOWN';
   timer: number;
+  orbitAngle?: number; // For Orbiter
 }
 
 export interface ProjectileEntity extends Entity {

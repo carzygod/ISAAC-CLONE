@@ -27,6 +27,8 @@ export const CONSTANTS = {
     PLAYER_HIT: '#cffafe', // Cyan 100
     ENEMY: '#ef4444', // Red 500
     ENEMY_FLYING: '#3b82f6', // Blue 500
+    ENEMY_TANK: '#3f6212', // Lime 800 (Dark Green)
+    ENEMY_ORBITER: '#db2777', // Pink 600
     ENEMY_BOSS: '#7f1d1d', // Red 900
     PROJECTILE_FRIENDLY: '#3b82f6', // Blue 500
     PROJECTILE_ENEMY: '#f97316', // Orange 500

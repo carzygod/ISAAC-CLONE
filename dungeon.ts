@@ -3,33 +3,124 @@ import { Room, Direction } from './types';
 import { SeededRNG } from './utils';
 
 const GRID_SIZE = 10; // Virtual grid for dungeon layout
-
-// 0: Floor, 1: Wall, 2: Obstacle
-const TEMPLATE_EMPTY = [
-  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-];
-
-const TEMPLATE_ROCKS = [
-  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-  [1, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-  [1, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-  [1, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-];
+const RW = 15; // Room Width in tiles
+const RH = 9;  // Room Height in tiles
 
 const copyLayout = (template: number[][]) => template.map(row => [...row]);
+
+// Basic Empty Template (Walls around, floor inside)
+const createEmptyTemplate = () => {
+  const map: number[][] = [];
+  for (let y = 0; y < RH; y++) {
+    const row: number[] = [];
+    for (let x = 0; x < RW; x++) {
+      if (y === 0 || y === RH - 1 || x === 0 || x === RW - 1) {
+        row.push(1); // Wall
+      } else {
+        row.push(0); // Floor
+      }
+    }
+    map.push(row);
+  }
+  return map;
+};
+
+// Procedurally generate a layout that guarantees topological connectivity
+const generateProceduralLayout = (rng: SeededRNG, doors: Room['doors']): number[][] => {
+  const maxAttempts = 5;
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const layout = createEmptyTemplate();
+    
+    // 1. Place Random Obstacles
+    // Density: 10% to 20% coverage
+    const density = rng.range(0.1, 0.2); 
+    const obstaclesToPlace = Math.floor((RW-2) * (RH-2) * density);
+    
+    for (let i = 0; i < obstaclesToPlace; i++) {
+        const x = rng.rangeInt(1, RW - 2);
+        const y = rng.rangeInt(1, RH - 2);
+        layout[y][x] = 2; // Rock
+    }
+
+    // 2. Clear Critical Areas (Center + Doors)
+    const clearRadius = (cx: number, cy: number, r: number) => {
+        for(let dy = -r; dy <= r; dy++) {
+            for(let dx = -r; dx <= r; dx++) {
+                const py = cy + dy;
+                const px = cx + dx;
+                if(py > 0 && py < RH-1 && px > 0 && px < RW-1) {
+                    layout[py][px] = 0;
+                }
+            }
+        }
+    };
+
+    const cx = Math.floor(RW/2);
+    const cy = Math.floor(RH/2);
+    
+    clearRadius(cx, cy, 1); // Clear center spawn
+    if (doors.UP) clearRadius(cx, 1, 1);
+    if (doors.DOWN) clearRadius(cx, RH-2, 1);
+    if (doors.LEFT) clearRadius(1, cy, 1);
+    if (doors.RIGHT) clearRadius(RW-2, cy, 1);
+
+    // 3. Flood Fill Validation
+    // Can we reach all active doors from the center?
+    const q: {x:number, y:number}[] = [{x: cx, y: cy}];
+    const visited = new Set<string>();
+    visited.add(`${cx},${cy}`);
+    
+    let reachableDoors = 0;
+    const requiredDoors = (doors.UP?1:0) + (doors.DOWN?1:0) + (doors.LEFT?1:0) + (doors.RIGHT?1:0);
+
+    const isDoorPos = (x: number, y: number) => {
+        if (doors.UP && x === cx && y === 1) return true;
+        if (doors.DOWN && x === cx && y === RH-2) return true;
+        if (doors.LEFT && x === 1 && y === cy) return true;
+        if (doors.RIGHT && x === RW-2 && y === cy) return true;
+        return false;
+    };
+
+    while (q.length > 0) {
+        const curr = q.shift()!;
+        
+        if (isDoorPos(curr.x, curr.y)) {
+            reachableDoors++;
+        }
+
+        const dirs = [{x:0, y:1}, {x:0, y:-1}, {x:1, y:0}, {x:-1, y:0}];
+        for (const d of dirs) {
+            const nx = curr.x + d.x;
+            const ny = curr.y + d.y;
+            
+            // Bounds check (inside walls)
+            if (nx > 0 && nx < RW-1 && ny > 0 && ny < RH-1) {
+                if (layout[ny][nx] !== 2 && !visited.has(`${nx},${ny}`)) {
+                    visited.add(`${nx},${ny}`);
+                    q.push({x: nx, y: ny});
+                }
+            }
+        }
+    }
+
+    // If valid, return logic
+    // We strictly need to be able to reach all doors. 
+    // Actually, simply checking if we visited the specific tiles in front of the doors is enough.
+    // However, the `reachableDoors` count is a good proxy.
+    // NOTE: isDoorPos logic checks the inner tile next to the door.
+    
+    // We recount required because the loop increments whenever we pop a door pos. 
+    // But since BFS visits each node once, it's accurate.
+    if (reachableDoors === requiredDoors) {
+        return layout;
+    }
+    // If failed, loop continues to retry generation
+  }
+
+  // Fallback: Empty Room
+  return createEmptyTemplate();
+}
 
 export const generateDungeon = (floorLevel: number, seed: number): Room[] => {
   const rng = new SeededRNG(seed);
@@ -93,7 +184,7 @@ export const generateDungeon = (floorLevel: number, seed: number): Room[] => {
 
   // Convert to Full Room Objects with Doors
   createdRooms.forEach(cr => {
-    // Check neighbors using the VALID rooms list, not just the queue history
+    // Check neighbors using the VALID rooms list
     const doors: Room['doors'] = {};
     const hasNeighbor = (dx: number, dy: number) => 
       validRoomCoords.has(`${cr.x + dx},${cr.y + dy}`);
@@ -103,12 +194,13 @@ export const generateDungeon = (floorLevel: number, seed: number): Room[] => {
     if (hasNeighbor(-1, 0)) doors[Direction.LEFT] = true;
     if (hasNeighbor(1, 0)) doors[Direction.RIGHT] = true;
 
-    // Pick a layout
-    let layout = copyLayout(TEMPLATE_EMPTY);
-    if (cr.type === 'NORMAL' && rng.next() > 0.5) {
-      layout = copyLayout(TEMPLATE_ROCKS);
-    } else if (cr.type === 'BOSS') {
-       layout = copyLayout(TEMPLATE_EMPTY); // Open arena
+    // Generate Layout
+    let layout: number[][];
+    if (cr.type === 'START' || cr.type === 'BOSS' || cr.type === 'ITEM') {
+        layout = createEmptyTemplate(); // Start/Boss/Item usually clear
+    } else {
+        // Procedural Topology for Normal Rooms
+        layout = generateProceduralLayout(rng, doors);
     }
 
     rooms.push({

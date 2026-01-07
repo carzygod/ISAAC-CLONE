@@ -65,7 +65,9 @@ export class GameEngine {
         damage: 3.5,
         fireRate: 20, // Frames
         shotSpeed: 7,
-        range: 400
+        range: 400,
+        shotSpread: 1,
+        bulletScale: 1
       },
       cooldown: 0,
       invincibleTimer: 0,
@@ -176,29 +178,40 @@ export class GameEngine {
         const typeRoll = Math.random();
         let eType = EnemyType.CHASER;
         let color = CONSTANTS.COLORS.ENEMY; // Red
+        let size = CONSTANTS.ENEMY_SIZE;
+        let hp = 10 + (this.floorLevel * 2);
+        let speed = 1.0;
 
-        if (typeRoll > 0.6) {
-          eType = EnemyType.SHOOTER;
-          color = CONSTANTS.COLORS.ENEMY_FLYING; // Blue
-        }
-        if (typeRoll > 0.8) {
-          eType = EnemyType.DASHER;
-          color = CONSTANTS.COLORS.ENEMY; // Red
+        if (typeRoll > 0.85) {
+            eType = EnemyType.TANK;
+            color = CONSTANTS.COLORS.ENEMY_TANK;
+            size = 40;
+            hp = 30 + (this.floorLevel * 5);
+        } else if (typeRoll > 0.7) {
+            eType = EnemyType.ORBITER;
+            color = CONSTANTS.COLORS.ENEMY_ORBITER;
+        } else if (typeRoll > 0.5) {
+            eType = EnemyType.SHOOTER;
+            color = CONSTANTS.COLORS.ENEMY_FLYING; // Blue
+        } else if (typeRoll > 0.35) {
+            eType = EnemyType.DASHER;
+            color = CONSTANTS.COLORS.ENEMY; // Red
         }
 
         const enemy: EnemyEntity = {
             id: uuid(),
             type: EntityType.ENEMY,
             x: ex, y: ey,
-            w: CONSTANTS.ENEMY_SIZE, h: CONSTANTS.ENEMY_SIZE,
+            w: size, h: size,
             velocity: { x: 0, y: 0 },
             color: color,
             markedForDeletion: false,
             enemyType: eType,
-            hp: 10 + (this.floorLevel * 2),
-            maxHp: 10 + (this.floorLevel * 2),
+            hp: hp,
+            maxHp: hp,
             aiState: 'IDLE',
-            timer: 0
+            timer: 0,
+            orbitAngle: Math.random() * Math.PI * 2
         };
         this.entities.push(enemy);
     }
@@ -227,8 +240,17 @@ export class GameEngine {
       const type = types[Math.floor(Math.random() * types.length)];
       
       let description = "Stat Up";
-      if (type === ItemType.HP_UP) description = "HP Up + Heal";
-      if (type === ItemType.DAMAGE_UP) description = "Damage +10%";
+      switch(type) {
+          case ItemType.HP_UP: description = "HP Up + Heal"; break;
+          case ItemType.DAMAGE_UP: description = "Damage +10%"; break;
+          case ItemType.SPEED_UP: description = "Speed +0.5"; break;
+          case ItemType.FIRE_RATE_UP: description = "Fire Rate +20%"; break;
+          case ItemType.SHOT_SPEED_UP: description = "Shot Speed +1.5"; break;
+          case ItemType.RANGE_UP: description = "Range +20%"; break;
+          case ItemType.BULLET_SIZE_UP: description = "Big Bullets +50%"; break;
+          case ItemType.TRIPLE_SHOT: description = "Triple Shot"; break;
+          case ItemType.QUAD_SHOT: description = "Quad Shot"; break;
+      }
 
       const item: ItemEntity = {
           id: uuid(),
@@ -366,13 +388,15 @@ export class GameEngine {
               const e1 = enemies[i];
               const e2 = enemies[j];
               
-              // Blue monsters (SHOOTER) do not have physics/collision with other monsters
-              if (e1.enemyType === EnemyType.SHOOTER || e2.enemyType === EnemyType.SHOOTER) continue;
+              // Flyings (Shooter, Orbiter) overlap
+              const fly1 = e1.enemyType === EnemyType.SHOOTER || e1.enemyType === EnemyType.ORBITER;
+              const fly2 = e2.enemyType === EnemyType.SHOOTER || e2.enemyType === EnemyType.ORBITER;
+              if (fly1 || fly2) continue;
 
               const dx = e1.x - e2.x;
               const dy = e1.y - e2.y;
               const dist = Math.sqrt(dx*dx + dy*dy);
-              const minDist = e1.w; // Simplified, assuming similar sizes
+              const minDist = e1.w; 
 
               if (dist < minDist && dist > 0) {
                   const overlap = minDist - dist;
@@ -390,28 +414,70 @@ export class GameEngine {
 
   spawnProjectile(owner: PlayerEntity | EnemyEntity, dir: {x:number, y:number}) {
       const isPlayer = owner.type === EntityType.PLAYER;
-      const speed = isPlayer ? (owner as PlayerEntity).stats.shotSpeed : 5;
-      const damage = isPlayer ? (owner as PlayerEntity).stats.damage : 1;
-      const size = CONSTANTS.PROJECTILE_SIZE;
-
-      const p: ProjectileEntity = {
-          id: uuid(),
-          type: EntityType.PROJECTILE,
-          x: owner.x + owner.w/2 - size/2,
-          y: owner.y + owner.h/2 - size/2,
-          w: size, h: size,
-          velocity: { x: dir.x * speed, y: dir.y * speed },
-          color: isPlayer ? CONSTANTS.COLORS.PROJECTILE_FRIENDLY : CONSTANTS.COLORS.PROJECTILE_ENEMY,
-          markedForDeletion: false,
-          ownerId: owner.id,
-          damage,
-          lifeTime: isPlayer ? (owner as PlayerEntity).stats.range : 600
+      const stats = isPlayer ? (owner as PlayerEntity).stats : null;
+      
+      const speed = stats ? stats.shotSpeed : 5;
+      const damage = stats ? stats.damage : 1;
+      
+      // Feature: Bullet size proportional to attack damage
+      // Base Size + (Damage / BaseDamage * scaling)
+      let baseSize = CONSTANTS.PROJECTILE_SIZE;
+      if (isPlayer) {
+          // Scale based on damage (linear scaling for simplicity)
+          // 3.5 is base damage.
+          const dmgFactor = Math.max(1, damage / 3.5);
+          baseSize = baseSize * dmgFactor;
+          
+          // Apply bullet scale stat
+          baseSize *= stats!.bulletScale;
+      }
+      
+      const range = stats ? stats.range : 600;
+      
+      // Helper to push a projectile
+      const pushProj = (vx: number, vy: number) => {
+          this.entities.push({
+              id: uuid(),
+              type: EntityType.PROJECTILE,
+              x: owner.x + owner.w/2 - baseSize/2,
+              y: owner.y + owner.h/2 - baseSize/2,
+              w: baseSize, h: baseSize,
+              velocity: { x: vx * speed, y: vy * speed },
+              color: isPlayer ? CONSTANTS.COLORS.PROJECTILE_FRIENDLY : CONSTANTS.COLORS.PROJECTILE_ENEMY,
+              markedForDeletion: false,
+              ownerId: owner.id,
+              damage,
+              lifeTime: range
+          } as ProjectileEntity);
       };
-      this.entities.push(p);
+
+      if (!isPlayer || stats!.shotSpread === 1) {
+          pushProj(dir.x, dir.y);
+      } else {
+          // Multi-shot Logic
+          const angle = Math.atan2(dir.y, dir.x);
+          const spreadRad = 15 * (Math.PI / 180); // 15 degrees spread
+
+          // Triple Shot: -15, 0, +15
+          if (stats!.shotSpread === 3) {
+              const angles = [angle - spreadRad, angle, angle + spreadRad];
+              angles.forEach(a => pushProj(Math.cos(a), Math.sin(a)));
+          }
+          // Quad Shot: -22.5, -7.5, +7.5, +22.5 (Wider spread)
+          else if (stats!.shotSpread === 4) {
+              const angles = [
+                  angle - spreadRad * 1.5, 
+                  angle - spreadRad * 0.5, 
+                  angle + spreadRad * 0.5, 
+                  angle + spreadRad * 1.5
+              ];
+              angles.forEach(a => pushProj(Math.cos(a), Math.sin(a)));
+          }
+      }
   }
 
   updateProjectile(p: ProjectileEntity) {
-      p.lifeTime -= Math.abs(p.velocity.x) + Math.abs(p.velocity.y); // Life is distance based-ish
+      p.lifeTime -= Math.abs(p.velocity.x) + Math.abs(p.velocity.y); 
       if (p.lifeTime <= 0) {
           p.markedForDeletion = true;
           return;
@@ -438,7 +504,7 @@ export class GameEngine {
           // Hit Player
           if (checkAABB(p, this.player)) {
               p.markedForDeletion = true;
-              this.damagePlayer(1); // Standard enemy damage
+              this.damagePlayer(1); 
           }
       }
   }
@@ -448,16 +514,33 @@ export class GameEngine {
       e.timer++;
       const distToPlayer = distance(e, this.player);
 
-      // Reduced speeds to 0.3x of original
-      // Original Chaser/Boss Speed: 2 -> 0.6
-      // Original Dasher Speed: 8 -> 2.4
-
       if (e.enemyType === EnemyType.CHASER || (e.enemyType === EnemyType.BOSS && distToPlayer > 100)) {
           if (e.timer % 5 === 0) { // Re-path occasionally
             const dir = normalizeVector({ x: this.player.x - e.x, y: this.player.y - e.y });
             e.velocity = { x: dir.x * 0.6, y: dir.y * 0.6 };
           }
-      } else if (e.enemyType === EnemyType.SHOOTER) {
+      } 
+      else if (e.enemyType === EnemyType.TANK) {
+          // Very slow, follows relentlessly
+          if (e.timer % 10 === 0) {
+             const dir = normalizeVector({ x: this.player.x - e.x, y: this.player.y - e.y });
+             e.velocity = { x: dir.x * 0.3, y: dir.y * 0.3 };
+          }
+      }
+      else if (e.enemyType === EnemyType.ORBITER) {
+          // Circle the player
+          if (!e.orbitAngle) e.orbitAngle = 0;
+          e.orbitAngle += 0.02; // Rotate speed
+          const orbitDist = 150;
+          const targetX = this.player.x + Math.cos(e.orbitAngle) * orbitDist;
+          const targetY = this.player.y + Math.sin(e.orbitAngle) * orbitDist;
+          
+          // Move towards orbit position
+          const dx = targetX - e.x;
+          const dy = targetY - e.y;
+          e.velocity = { x: dx * 0.05, y: dy * 0.05 };
+      }
+      else if (e.enemyType === EnemyType.SHOOTER) {
           e.velocity = { x: 0, y: 0 };
           if (e.timer % 120 === 0 && distToPlayer < 400) {
               const dir = normalizeVector({ x: this.player.x - e.x, y: this.player.y - e.y });
@@ -510,8 +593,7 @@ export class GameEngine {
           this.score += e.maxHp * 10;
           
           if (e.enemyType === EnemyType.BOSS) {
-               // Boss death handles spawning trapdoor in the loop via 'cleared' check or here.
-               // We handle it in the main loop when room becomes clear.
+               // Boss logic
           }
       }
   }
@@ -538,15 +620,19 @@ export class GameEngine {
       const s = this.player.stats;
       switch(item.itemType) {
           case ItemType.HP_UP: 
-              s.maxHp += 2; // Increase Max HP by 2 (1 heart)
-              s.hp = Math.min(s.hp + 2, s.maxHp); // Heal by 2, cap at new max
+              s.maxHp += 2; 
+              s.hp = Math.min(s.hp + 2, s.maxHp); 
               break;
           case ItemType.DAMAGE_UP: 
-              s.damage *= 1.1; // 10% Increase
+              s.damage *= 1.1; 
               break;
           case ItemType.SPEED_UP: s.speed += 0.5; break;
-          case ItemType.FIRE_RATE_UP: s.fireRate = Math.max(5, s.fireRate - 4); break;
+          case ItemType.FIRE_RATE_UP: s.fireRate = Math.max(5, s.fireRate * 0.8); break; // 20% reduction (faster)
           case ItemType.SHOT_SPEED_UP: s.shotSpeed += 1.5; break;
+          case ItemType.RANGE_UP: s.range *= 1.2; break;
+          case ItemType.BULLET_SIZE_UP: s.bulletScale += 0.5; break;
+          case ItemType.TRIPLE_SHOT: s.shotSpread = 3; break;
+          case ItemType.QUAD_SHOT: s.shotSpread = 4; break;
       }
   }
 
@@ -556,9 +642,6 @@ export class GameEngine {
       const map = this.currentRoom!.layout;
 
       // Improved "2.5D" Feet Collision Logic
-      // Instead of checking the full bounding box, we only check the bottom half (feet).
-      // This prevents getting "hooked" on corners above the player and allows visual overlap.
-      
       const getFeetRect = (x: number, y: number): Rect => ({
           x: x + 4, // Slight horizontal padding to avoid sticky sliding
           y: y + ent.h * 0.5, // Start from middle of sprite

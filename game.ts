@@ -24,6 +24,9 @@ export class GameEngine {
   notification: string | null = null;
   notificationTimer: number = 0;
   
+  // Restart Logic
+  restartTimer: number = 0;
+  
   // Callback to sync React UI
   onUiUpdate: (stats: any) => void;
 
@@ -45,6 +48,7 @@ export class GameEngine {
     this.player = this.createPlayer();
     this.loadFloor(1);
     this.status = GameStatus.PLAYING;
+    this.restartTimer = 0;
   }
 
   createPlayer(): PlayerEntity {
@@ -282,7 +286,20 @@ export class GameEngine {
       this.entities.push(td);
   }
 
-  update(input: { move: {x:number, y:number}, shoot: {x:number, y:number} | null }) {
+  update(input: { move: {x:number, y:number}, shoot: {x:number, y:number} | null, restart?: boolean }) {
+    
+    // Quick Restart Logic (Allow in Playing and Game Over)
+    if (input.restart) {
+        this.restartTimer++;
+        if (this.restartTimer > 60) { // 1 second hold
+            this.startNewGame();
+            this.notification = "RUN RESTARTED";
+            this.notificationTimer = 120;
+        }
+    } else {
+        this.restartTimer = 0;
+    }
+
     if (this.status !== GameStatus.PLAYING) return;
 
     // --- Notification Logic ---
@@ -870,5 +887,30 @@ export class GameEngine {
               this.ctx.stroke();
           }
       });
+      
+      // Draw Restart Overlay
+      if (this.restartTimer > 0) {
+           this.ctx.save();
+           this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
+           this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+           
+           this.ctx.fillStyle = 'white';
+           this.ctx.font = 'bold 20px monospace';
+           this.ctx.textAlign = 'center';
+           this.ctx.textBaseline = 'middle';
+           this.ctx.fillText("HOLD R TO RESTART", this.canvas.width/2, this.canvas.height/2 - 20);
+           
+           // Bar
+           const maxW = 200;
+           const h = 10;
+           const pct = Math.min(this.restartTimer / 60, 1);
+           
+           this.ctx.fillStyle = '#333';
+           this.ctx.fillRect(this.canvas.width/2 - maxW/2, this.canvas.height/2 + 10, maxW, h);
+           this.ctx.fillStyle = '#ef4444'; // Red
+           this.ctx.fillRect(this.canvas.width/2 - maxW/2, this.canvas.height/2 + 10, maxW * pct, h);
+           
+           this.ctx.restore();
+      }
   }
 }

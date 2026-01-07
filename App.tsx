@@ -40,8 +40,9 @@ export default function App() {
       if (engineRef.current && inputRef.current) {
         const move = inputRef.current.getMovementVector();
         const shoot = inputRef.current.getShootingDirection();
+        const restart = inputRef.current.keys['KeyR'] || false;
         
-        engineRef.current.update({ move, shoot });
+        engineRef.current.update({ move, shoot, restart });
         engineRef.current.draw();
       }
       requestRef.current = requestAnimationFrame(loop);
@@ -204,6 +205,7 @@ export default function App() {
             >
               TRY AGAIN
             </button>
+            <p className="text-white/50 mt-4 text-sm">Hold 'R' to Quick Restart</p>
           </div>
         )}
       </div>

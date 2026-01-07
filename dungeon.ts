@@ -88,12 +88,15 @@ export const generateDungeon = (floorLevel: number, seed: number): Room[] => {
     itemRoom.type = 'ITEM';
   }
 
+  // Use a Set of valid room coordinates to strictly determine neighbors
+  const validRoomCoords = new Set(createdRooms.map(r => `${r.x},${r.y}`));
+
   // Convert to Full Room Objects with Doors
   createdRooms.forEach(cr => {
-    // Check neighbors
+    // Check neighbors using the VALID rooms list, not just the queue history
     const doors: Room['doors'] = {};
     const hasNeighbor = (dx: number, dy: number) => 
-      occupied.has(`${cr.x + dx},${cr.y + dy}`);
+      validRoomCoords.has(`${cr.x + dx},${cr.y + dy}`);
 
     if (hasNeighbor(0, -1)) doors[Direction.UP] = true;
     if (hasNeighbor(0, 1)) doors[Direction.DOWN] = true;

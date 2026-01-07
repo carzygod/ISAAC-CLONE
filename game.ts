@@ -89,6 +89,11 @@ export class GameEngine {
     this.currentRoom = room;
     room.visited = true;
     
+    // Sync clear status for Item Rooms (re-entry logic)
+    if (room.type === 'ITEM' && room.itemCollected) {
+        room.cleared = true;
+    }
+
     // Ensure cleared rooms have open physical doors (updates collision map)
     if (room.cleared) {
         carveDoors(room.layout, room.doors);
@@ -137,14 +142,11 @@ export class GameEngine {
     }
 
     // Spawn Item if Item Room and NOT collected yet
-    // We treat Item rooms as "cleared" for door purposes instantly, but handle item existence separately
     if (room.type === 'ITEM') {
         if (!room.itemCollected) {
             this.spawnItem(cx, cy);
+            // DO NOT force clear here. Room stays locked until item collected.
         }
-        // Force clear for Item Rooms so doors open (unless we want to trap until pickup? Isaac doesn't trap)
-        room.cleared = true; 
-        carveDoors(room.layout, room.doors); 
     }
     
     // Boss Spawn
@@ -161,6 +163,9 @@ export class GameEngine {
   spawnEnemiesForRoom(room: Room) {
     const count = 2 + Math.floor(Math.random() * 3) + this.floorLevel;
     
+    // Don't spawn enemies in Item rooms
+    if (room.type === 'ITEM') return;
+
     for (let i = 0; i < count; i++) {
         const ex = CONSTANTS.TILE_SIZE * 2 + Math.random() * (CONSTANTS.CANVAS_WIDTH - CONSTANTS.TILE_SIZE * 4);
         const ey = CONSTANTS.TILE_SIZE * 2 + Math.random() * (CONSTANTS.CANVAS_HEIGHT - CONSTANTS.TILE_SIZE * 4);
@@ -291,6 +296,8 @@ export class GameEngine {
     const enemies = this.entities.filter(e => e.type === EntityType.ENEMY) as EnemyEntity[];
     const roomIsClear = enemies.length === 0;
 
+    // Auto-clear Room (Normal/Boss) when all enemies are dead
+    // Note: We exclude ITEM rooms here because they are cleared via item collection
     if (this.currentRoom && !this.currentRoom.cleared && roomIsClear && this.currentRoom.type !== 'ITEM') {
         this.currentRoom.cleared = true;
         // Open doors physically when room is cleared
@@ -516,6 +523,11 @@ export class GameEngine {
       // Mark as collected in the room data for persistence
       if (this.currentRoom) {
           this.currentRoom.itemCollected = true;
+          // Unlock doors if in item room
+          if (this.currentRoom.type === 'ITEM') {
+               this.currentRoom.cleared = true;
+               carveDoors(this.currentRoom.layout, this.currentRoom.doors);
+          }
       }
 
       // Show notification

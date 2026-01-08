@@ -104,28 +104,18 @@ const generateProceduralLayout = (rng: SeededRNG, doors: Room['doors']): number[
         }
     }
 
-    // If valid, return logic
-    // We strictly need to be able to reach all doors. 
-    // Actually, simply checking if we visited the specific tiles in front of the doors is enough.
-    // However, the `reachableDoors` count is a good proxy.
-    // NOTE: isDoorPos logic checks the inner tile next to the door.
-    
-    // We recount required because the loop increments whenever we pop a door pos. 
-    // But since BFS visits each node once, it's accurate.
     if (reachableDoors === requiredDoors) {
         return layout;
     }
-    // If failed, loop continues to retry generation
   }
 
   // Fallback: Empty Room
   return createEmptyTemplate();
 }
 
-export const generateDungeon = (floorLevel: number, seed: number): Room[] => {
+export const generateDungeon = (floorLevel: number, seed: number, targetRoomCount: number): Room[] => {
   const rng = new SeededRNG(seed);
   const rooms: Room[] = [];
-  const roomCount = 5 + Math.floor(floorLevel * 1.5); // Increase rooms per floor
   
   // Start at center
   const startX = Math.floor(GRID_SIZE / 2);
@@ -138,7 +128,7 @@ export const generateDungeon = (floorLevel: number, seed: number): Room[] => {
   const createdRooms: {x: number, y: number, type: Room['type'], dist: number}[] = [];
 
   // Simple BFS/Random Walk hybrid to generate layout
-  while (createdRooms.length < roomCount && queue.length > 0) {
+  while (createdRooms.length < targetRoomCount && queue.length > 0) {
     const current = queue.shift()!;
     createdRooms.push({ ...current, type: 'NORMAL' });
 
@@ -148,7 +138,7 @@ export const generateDungeon = (floorLevel: number, seed: number): Room[] => {
     ].sort(() => rng.next() - 0.5);
 
     for (const dir of directions) {
-      if (createdRooms.length >= roomCount) break;
+      if (createdRooms.length >= targetRoomCount) break;
       
       const nx = current.x + dir.x;
       const ny = current.y + dir.y;

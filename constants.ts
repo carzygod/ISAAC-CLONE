@@ -33,5 +33,6 @@ export const CONSTANTS = {
     PROJECTILE_FRIENDLY: '#3b82f6', // Blue 500
     PROJECTILE_ENEMY: '#f97316', // Orange 500
     ITEM: '#a855f7', // Purple 500
+    HEART: '#dc2626', // Red 600
   }
 };

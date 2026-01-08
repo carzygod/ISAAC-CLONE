@@ -44,10 +44,11 @@ export enum ItemType {
   DAMAGE_UP = 'DAMAGE_UP',
   FIRE_RATE_UP = 'FIRE_RATE_UP',
   SHOT_SPEED_UP = 'SHOT_SPEED_UP',
-  RANGE_UP = 'RANGE_UP',           // New
-  BULLET_SIZE_UP = 'BULLET_SIZE_UP', // New
-  TRIPLE_SHOT = 'TRIPLE_SHOT',     // New
-  QUAD_SHOT = 'QUAD_SHOT'          // New
+  RANGE_UP = 'RANGE_UP',           
+  BULLET_SIZE_UP = 'BULLET_SIZE_UP', 
+  TRIPLE_SHOT = 'TRIPLE_SHOT',     
+  QUAD_SHOT = 'QUAD_SHOT',
+  HEART_PICKUP = 'HEART_PICKUP'   // New Pickup
 }
 
 // Interfaces

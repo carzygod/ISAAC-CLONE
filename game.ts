@@ -3,7 +3,7 @@ import {
   Entity, PlayerEntity, EnemyEntity, ProjectileEntity, ItemEntity, 
   EntityType, EnemyType, Direction, Stats, ItemType, GameStatus, Room, Rect 
 } from './types';
-import { uuid, checkAABB, distance, normalizeVector } from './utils';
+import { uuid, checkAABB, distance, normalizeVector, SeededRNG } from './utils';
 import { generateDungeon, carveDoors } from './dungeon';
 
 export class GameEngine {
@@ -52,6 +52,7 @@ export class GameEngine {
   }
 
   createPlayer(): PlayerEntity {
+    // 90% of Original Stats (Reduced by 10%)
     return {
       id: 'player',
       type: EntityType.PLAYER,
@@ -63,12 +64,12 @@ export class GameEngine {
       color: CONSTANTS.COLORS.PLAYER,
       markedForDeletion: false,
       stats: {
-        hp: 6, // 3 Hearts (2 hp per heart)
+        hp: 6, // 3 Hearts
         maxHp: 6,
-        speed: 4,
+        speed: 4 * 0.9,       // 3.6
         damage: 3.5,
-        fireRate: 20, // Frames
-        shotSpeed: 7,
+        fireRate: 20 / 0.9,   // ~22.2 (Slower fire rate)
+        shotSpeed: 7 * 0.9,   // 6.3
         range: 400,
         shotSpread: 1,
         bulletScale: 1
@@ -79,11 +80,26 @@ export class GameEngine {
     };
   }
 
+  // Calculate geometric room growth based on run seed
+  calculateRoomCount(level: number): number {
+      const rng = new SeededRNG(this.baseSeed);
+      let count = 5;
+      
+      // Simulate growth for previous levels to reach current state
+      for (let i = 1; i < level; i++) {
+          const increasePct = rng.range(0.2, 0.6); // 20% to 60%
+          count = Math.floor(count * (1 + increasePct));
+      }
+      return count;
+  }
+
   loadFloor(level: number) {
     this.floorLevel = level;
     // Deterministic seed for this floor based on run seed
     const floorSeed = this.baseSeed + (level * 1000); 
-    this.dungeon = generateDungeon(level, floorSeed);
+    const roomCount = this.calculateRoomCount(level);
+    
+    this.dungeon = generateDungeon(level, floorSeed, roomCount);
     
     const startRoom = this.dungeon.find(r => r.type === 'START');
     if (startRoom) {
@@ -184,7 +200,6 @@ export class GameEngine {
         let color = CONSTANTS.COLORS.ENEMY; // Red
         let size = CONSTANTS.ENEMY_SIZE;
         let hp = 10 + (this.floorLevel * 2);
-        let speed = 1.0;
 
         if (typeRoll > 0.85) {
             eType = EnemyType.TANK;
@@ -240,7 +255,8 @@ export class GameEngine {
   }
 
   spawnItem(x: number, y: number) {
-      const types = Object.values(ItemType);
+      // Exclude PICKUPs from item room generation
+      const types = Object.values(ItemType).filter(t => t !== ItemType.HEART_PICKUP);
       const type = types[Math.floor(Math.random() * types.length)];
       
       let description = "Stat Up";
@@ -271,6 +287,24 @@ export class GameEngine {
           description: description
       };
       this.entities.push(item);
+  }
+  
+  spawnPickup(x: number, y: number) {
+      const pickup: ItemEntity = {
+          id: uuid(),
+          type: EntityType.ITEM,
+          x: x - 8,
+          y: y - 8,
+          w: 16,
+          h: 16,
+          velocity: {x:0, y:0},
+          color: CONSTANTS.COLORS.HEART,
+          markedForDeletion: false,
+          itemType: ItemType.HEART_PICKUP,
+          name: "Heart",
+          description: "Recover 1 HP"
+      };
+      this.entities.push(pickup);
   }
 
   spawnTrapdoor(x: number, y: number) {
@@ -341,6 +375,13 @@ export class GameEngine {
         this.currentRoom.cleared = true;
         // Open doors physically when room is cleared
         carveDoors(this.currentRoom.layout, this.currentRoom.doors);
+        
+        // 10% Chance to spawn a Heart Drop on Room Clear
+        if (Math.random() < 0.10) {
+             const cx = CONSTANTS.CANVAS_WIDTH / 2;
+             const cy = CONSTANTS.CANVAS_HEIGHT / 2;
+             this.spawnPickup(cx, cy);
+        }
         
         // If it was a boss room, spawn trapdoor
         if (this.currentRoom.type === 'BOSS') {
@@ -433,7 +474,7 @@ export class GameEngine {
       const isPlayer = owner.type === EntityType.PLAYER;
       const stats = isPlayer ? (owner as PlayerEntity).stats : null;
       
-      const speed = stats ? stats.shotSpeed : 5;
+      const speed = stats ? stats.shotSpeed : 5 * 0.9; // 10% Slower for Enemies too
       const damage = stats ? stats.damage : 1;
       
       // Feature: Bullet size proportional to attack damage
@@ -530,24 +571,27 @@ export class GameEngine {
       // Simple AI
       e.timer++;
       const distToPlayer = distance(e, this.player);
+      
+      // Global 10% Slow modifier (0.9 multiplier) on enemy logic
+      const SPEED_MOD = 0.9;
 
       if (e.enemyType === EnemyType.CHASER || (e.enemyType === EnemyType.BOSS && distToPlayer > 100)) {
           if (e.timer % 5 === 0) { // Re-path occasionally
             const dir = normalizeVector({ x: this.player.x - e.x, y: this.player.y - e.y });
-            e.velocity = { x: dir.x * 0.6, y: dir.y * 0.6 };
+            e.velocity = { x: dir.x * 0.6 * SPEED_MOD, y: dir.y * 0.6 * SPEED_MOD };
           }
       } 
       else if (e.enemyType === EnemyType.TANK) {
           // Very slow, follows relentlessly
           if (e.timer % 10 === 0) {
              const dir = normalizeVector({ x: this.player.x - e.x, y: this.player.y - e.y });
-             e.velocity = { x: dir.x * 0.3, y: dir.y * 0.3 };
+             e.velocity = { x: dir.x * 0.3 * SPEED_MOD, y: dir.y * 0.3 * SPEED_MOD };
           }
       }
       else if (e.enemyType === EnemyType.ORBITER) {
           // Circle the player
           if (!e.orbitAngle) e.orbitAngle = 0;
-          e.orbitAngle += 0.02; // Rotate speed
+          e.orbitAngle += 0.02 * SPEED_MOD; // Rotate speed
           const orbitDist = 150;
           const targetX = this.player.x + Math.cos(e.orbitAngle) * orbitDist;
           const targetY = this.player.y + Math.sin(e.orbitAngle) * orbitDist;
@@ -555,22 +599,23 @@ export class GameEngine {
           // Move towards orbit position
           const dx = targetX - e.x;
           const dy = targetY - e.y;
-          e.velocity = { x: dx * 0.05, y: dy * 0.05 };
+          e.velocity = { x: dx * 0.05 * SPEED_MOD, y: dy * 0.05 * SPEED_MOD };
       }
       else if (e.enemyType === EnemyType.SHOOTER) {
           e.velocity = { x: 0, y: 0 };
-          if (e.timer % 120 === 0 && distToPlayer < 400) {
+          // 120 / 0.9 = ~133 frames (Slower shooting)
+          if (e.timer % Math.floor(120 / SPEED_MOD) === 0 && distToPlayer < 400) {
               const dir = normalizeVector({ x: this.player.x - e.x, y: this.player.y - e.y });
               this.spawnProjectile(e, dir);
           }
       } else if (e.enemyType === EnemyType.DASHER) {
           if (e.aiState === 'IDLE') {
               e.velocity = {x:0,y:0};
-              if (e.timer > 60) {
+              if (e.timer > 60 / SPEED_MOD) {
                   e.aiState = 'ATTACK';
                   e.timer = 0;
                   const dir = normalizeVector({ x: this.player.x - e.x, y: this.player.y - e.y });
-                  e.velocity = { x: dir.x * 2.4, y: dir.y * 2.4 }; // Dash speed reduced
+                  e.velocity = { x: dir.x * 2.4 * SPEED_MOD, y: dir.y * 2.4 * SPEED_MOD }; 
               }
           } else if (e.aiState === 'ATTACK') {
               if (e.timer > 20) {
@@ -609,6 +654,11 @@ export class GameEngine {
           e.markedForDeletion = true;
           this.score += e.maxHp * 10;
           
+          // 5% Chance to drop Heart Pickup
+          if (Math.random() < 0.05) {
+              this.spawnPickup(e.x + e.w/2, e.y + e.h/2);
+          }
+
           if (e.enemyType === EnemyType.BOSS) {
                // Boss logic
           }
@@ -617,6 +667,15 @@ export class GameEngine {
 
   collectItem(item: ItemEntity) {
       item.markedForDeletion = true;
+      
+      // Handle Pickups (Instant consume)
+      if (item.itemType === ItemType.HEART_PICKUP) {
+          this.player.stats.hp = Math.min(this.player.stats.hp + 1, this.player.stats.maxHp);
+          this.notification = "Recovered 1 HP";
+          this.notificationTimer = 60;
+          return;
+      }
+
       this.player.inventory.push(item.itemType);
       
       // Mark as collected in the room data for persistence
@@ -870,10 +929,23 @@ export class GameEngine {
              this.ctx.arc(e.x + e.w/2, e.y + e.h/2, e.w/2, 0, Math.PI * 2);
              this.ctx.fill();
           } else if (e.type === EntityType.ITEM) {
-             this.ctx.fillRect(e.x, e.y, e.w, e.h);
-             this.ctx.fillStyle = 'white';
-             this.ctx.font = '10px monospace';
-             this.ctx.fillText("?", e.x + 6, e.y + 16);
+             if ((e as ItemEntity).itemType === ItemType.HEART_PICKUP) {
+                 // Draw Heart Pickup
+                 const cx = e.x + e.w/2;
+                 const cy = e.y + e.h/2;
+                 this.ctx.fillStyle = e.color;
+                 this.ctx.beginPath();
+                 this.ctx.arc(cx - 4, cy - 4, 4, 0, Math.PI, true);
+                 this.ctx.arc(cx + 4, cy - 4, 4, 0, Math.PI, true);
+                 this.ctx.lineTo(cx, cy + 6);
+                 this.ctx.fill();
+             } else {
+                 // Standard Item Box
+                 this.ctx.fillRect(e.x, e.y, e.w, e.h);
+                 this.ctx.fillStyle = 'white';
+                 this.ctx.font = '10px monospace';
+                 this.ctx.fillText("?", e.x + 6, e.y + 16);
+             }
           } else if (e.type === EntityType.TRAPDOOR) {
               // Draw trapdoor
               this.ctx.fillStyle = 'black';

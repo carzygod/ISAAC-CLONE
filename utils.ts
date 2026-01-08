@@ -1,4 +1,5 @@
-import { Vector2, Rect, Direction } from './types';
+import { Vector2, Rect, KeyMap } from './types';
+import { DEFAULT_KEYMAP } from './constants';
 
 export const uuid = () => Math.random().toString(36).substr(2, 9);
 
@@ -46,10 +47,16 @@ export class SeededRNG {
 
 export class InputManager {
   keys: { [key: string]: boolean } = {};
+  keyMap: KeyMap;
 
-  constructor() {
+  constructor(initialKeyMap?: KeyMap) {
+    this.keyMap = initialKeyMap || DEFAULT_KEYMAP;
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
+  }
+
+  updateKeyMap(newMap: KeyMap) {
+    this.keyMap = newMap;
   }
 
   destroy() {
@@ -67,11 +74,10 @@ export class InputManager {
 
   getMovementVector(): Vector2 {
     const v = { x: 0, y: 0 };
-    // Strictly WASD for movement
-    if (this.keys['KeyW']) v.y -= 1;
-    if (this.keys['KeyS']) v.y += 1;
-    if (this.keys['KeyA']) v.x -= 1;
-    if (this.keys['KeyD']) v.x += 1;
+    if (this.keys[this.keyMap.moveUp]) v.y -= 1;
+    if (this.keys[this.keyMap.moveDown]) v.y += 1;
+    if (this.keys[this.keyMap.moveLeft]) v.x -= 1;
+    if (this.keys[this.keyMap.moveRight]) v.x += 1;
     return normalizeVector(v);
   }
 
@@ -79,15 +85,14 @@ export class InputManager {
     let x = 0;
     let y = 0;
     
-    // Strictly Arrow Keys for shooting
-    if (this.keys['ArrowUp']) y -= 1;
-    if (this.keys['ArrowDown']) y += 1;
-    if (this.keys['ArrowLeft']) x -= 1;
-    if (this.keys['ArrowRight']) x += 1;
+    if (this.keys[this.keyMap.shootUp]) y -= 1;
+    if (this.keys[this.keyMap.shootDown]) y += 1;
+    if (this.keys[this.keyMap.shootLeft]) x -= 1;
+    if (this.keys[this.keyMap.shootRight]) x += 1;
 
     if (x === 0 && y === 0) return null;
     
-    // Enforce 4-way shooting (Isaac style)
+    // Enforce 4-way shooting
     if (Math.abs(x) >= Math.abs(y)) {
         y = 0;
     } else {
@@ -95,5 +100,9 @@ export class InputManager {
     }
     
     return normalizeVector({x, y});
+  }
+
+  isRestartPressed(): boolean {
+    return !!this.keys[this.keyMap.restart];
   }
 }

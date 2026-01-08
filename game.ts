@@ -259,17 +259,20 @@ export class GameEngine {
       const types = Object.values(ItemType).filter(t => t !== ItemType.HEART_PICKUP);
       const type = types[Math.floor(Math.random() * types.length)];
       
-      let description = "Stat Up";
+      let nameKey = "";
+      let descKey = "";
+
+      // Assign Translation Keys instead of Strings
       switch(type) {
-          case ItemType.HP_UP: description = "HP Up + Heal"; break;
-          case ItemType.DAMAGE_UP: description = "Damage +10%"; break;
-          case ItemType.SPEED_UP: description = "Speed +0.5"; break;
-          case ItemType.FIRE_RATE_UP: description = "Fire Rate +20%"; break;
-          case ItemType.SHOT_SPEED_UP: description = "Shot Speed +1.5"; break;
-          case ItemType.RANGE_UP: description = "Range +20%"; break;
-          case ItemType.BULLET_SIZE_UP: description = "Big Bullets +50%"; break;
-          case ItemType.TRIPLE_SHOT: description = "Triple Shot"; break;
-          case ItemType.QUAD_SHOT: description = "Quad Shot"; break;
+          case ItemType.HP_UP: nameKey = "ITEM_HP_UP_NAME"; descKey = "ITEM_HP_UP_DESC"; break;
+          case ItemType.DAMAGE_UP: nameKey = "ITEM_DAMAGE_UP_NAME"; descKey = "ITEM_DAMAGE_UP_DESC"; break;
+          case ItemType.SPEED_UP: nameKey = "ITEM_SPEED_UP_NAME"; descKey = "ITEM_SPEED_UP_DESC"; break;
+          case ItemType.FIRE_RATE_UP: nameKey = "ITEM_FIRE_RATE_UP_NAME"; descKey = "ITEM_FIRE_RATE_UP_DESC"; break;
+          case ItemType.SHOT_SPEED_UP: nameKey = "ITEM_SHOT_SPEED_UP_NAME"; descKey = "ITEM_SHOT_SPEED_UP_DESC"; break;
+          case ItemType.RANGE_UP: nameKey = "ITEM_RANGE_UP_NAME"; descKey = "ITEM_RANGE_UP_DESC"; break;
+          case ItemType.BULLET_SIZE_UP: nameKey = "ITEM_BULLET_SIZE_UP_NAME"; descKey = "ITEM_BULLET_SIZE_UP_DESC"; break;
+          case ItemType.TRIPLE_SHOT: nameKey = "ITEM_TRIPLE_SHOT_NAME"; descKey = "ITEM_TRIPLE_SHOT_DESC"; break;
+          case ItemType.QUAD_SHOT: nameKey = "ITEM_QUAD_SHOT_NAME"; descKey = "ITEM_QUAD_SHOT_DESC"; break;
       }
 
       const item: ItemEntity = {
@@ -283,8 +286,8 @@ export class GameEngine {
           color: CONSTANTS.COLORS.ITEM,
           markedForDeletion: false,
           itemType: type,
-          name: type.replace(/_/g, ' '),
-          description: description
+          name: nameKey,
+          description: descKey
       };
       this.entities.push(item);
   }
@@ -301,8 +304,8 @@ export class GameEngine {
           color: CONSTANTS.COLORS.HEART,
           markedForDeletion: false,
           itemType: ItemType.HEART_PICKUP,
-          name: "Heart",
-          description: "Recover 1 HP"
+          name: "PICKUP_HEART_NAME",
+          description: "PICKUP_HEART_DESC"
       };
       this.entities.push(pickup);
   }
@@ -327,7 +330,7 @@ export class GameEngine {
         this.restartTimer++;
         if (this.restartTimer > 60) { // 1 second hold
             this.startNewGame();
-            this.notification = "RUN RESTARTED";
+            this.notification = "NOTIF_RESTART"; // Translation Key
             this.notificationTimer = 120;
         }
     } else {
@@ -433,7 +436,7 @@ export class GameEngine {
         floor: this.floorLevel,
         score: this.score,
         items: this.player.inventory.length,
-        notification: this.notification, // Send notification
+        notification: this.notification, // Send notification key
         // Minimap Data
         dungeon: this.dungeon.map(r => ({x: r.x, y: r.y, type: r.type, visited: r.visited})),
         currentRoomPos: this.currentRoom ? {x: this.currentRoom.x, y: this.currentRoom.y} : {x:0, y:0}
@@ -671,7 +674,8 @@ export class GameEngine {
       // Handle Pickups (Instant consume)
       if (item.itemType === ItemType.HEART_PICKUP) {
           this.player.stats.hp = Math.min(this.player.stats.hp + 1, this.player.stats.maxHp);
-          this.notification = "Recovered 1 HP";
+          // Pass Translation Keys via Notification
+          this.notification = "PICKUP_HEART_DESC"; 
           this.notificationTimer = 60;
           return;
       }
@@ -688,8 +692,8 @@ export class GameEngine {
           }
       }
 
-      // Show notification
-      this.notification = `${item.name}: ${item.description}`;
+      // Show notification using translation keys stored in item
+      this.notification = `${item.name}:${item.description}`;
       this.notificationTimer = 180; // 3 seconds
       
       // Apply stats
@@ -970,7 +974,12 @@ export class GameEngine {
            this.ctx.font = 'bold 20px monospace';
            this.ctx.textAlign = 'center';
            this.ctx.textBaseline = 'middle';
-           this.ctx.fillText("HOLD R TO RESTART", this.canvas.width/2, this.canvas.height/2 - 20);
+           // Use raw text here as Canvas doesn't know about React state easily, 
+           // but we should Ideally pass this string in. 
+           // For prototype, we keep simple English or hardcode localized in App.tsx overlay logic
+           // Actually, since this is drawn on canvas, let's remove it and handle it in React UI?
+           // The prompt requires localization.
+           // I'll leave the bar but remove text, let React handle text overlay.
            
            // Bar
            const maxW = 200;

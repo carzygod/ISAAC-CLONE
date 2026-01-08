@@ -51,7 +51,32 @@ export enum ItemType {
   HEART_PICKUP = 'HEART_PICKUP'   // New Pickup
 }
 
+export enum Language {
+  ZH_CN = 'zh-CN',
+  ZH_TW = 'zh-TW',
+  EN = 'en',
+  RU = 'ru'
+}
+
 // Interfaces
+export interface KeyMap {
+  moveUp: string;
+  moveDown: string;
+  moveLeft: string;
+  moveRight: string;
+  shootUp: string;
+  shootDown: string;
+  shootLeft: string;
+  shootRight: string;
+  restart: string;
+}
+
+export interface Settings {
+  language: Language;
+  showMinimap: boolean;
+  keyMap: KeyMap;
+}
+
 export interface Stats {
   hp: number;
   maxHp: number;
@@ -103,8 +128,8 @@ export interface ProjectileEntity extends Entity {
 
 export interface ItemEntity extends Entity {
   itemType: ItemType;
-  name: string;
-  description: string;
+  name: string; // Now stores Translation Key
+  description: string; // Now stores Translation Key
 }
 
 export interface Room {
@@ -123,5 +148,5 @@ export interface GameState {
   floorLevel: number;
   score: number;
   hudStats: Stats | null; // For React UI
-  notification: string | null; // New notification text
+  notification: string | null; // Stores Translation Key
 }

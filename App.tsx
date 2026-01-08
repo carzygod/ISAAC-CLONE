@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { GameEngine } from './game';
 import { InputManager } from './utils';
-import { GameStatus, Stats } from './types';
-import { CONSTANTS } from './constants';
+import { GameStatus, Settings, Language, KeyMap } from './types';
+import { CONSTANTS, TRANSLATIONS, DEFAULT_KEYMAP } from './constants';
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -10,6 +10,7 @@ export default function App() {
   const inputRef = useRef<InputManager | null>(null);
   const requestRef = useRef<number>();
 
+  // Game Data State
   const [gameStats, setGameStats] = useState<{
     hp: number; 
     maxHp: number; 
@@ -22,15 +23,35 @@ export default function App() {
   } | null>(null);
   
   const [status, setStatus] = useState<GameStatus>(GameStatus.MENU);
+  const [showSettings, setShowSettings] = useState(false);
+  const [waitingForKey, setWaitingForKey] = useState<keyof KeyMap | null>(null);
+
+  // Settings State
+  const [settings, setSettings] = useState<Settings>({
+    language: Language.ZH_CN,
+    showMinimap: true,
+    keyMap: { ...DEFAULT_KEYMAP }
+  });
+
+  // Translation Helper
+  const t = (key: string) => {
+    // If complex format (Key:Desc), split it
+    if (key.includes(':')) {
+        const parts = key.split(':');
+        const name = TRANSLATIONS[settings.language][parts[0]] || parts[0];
+        const desc = TRANSLATIONS[settings.language][parts[1]] || parts[1];
+        return `${name}: ${desc}`;
+    }
+    return TRANSLATIONS[settings.language][key] || key;
+  };
 
   // Initialize Game
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    inputRef.current = new InputManager();
+    inputRef.current = new InputManager(settings.keyMap);
     engineRef.current = new GameEngine(canvasRef.current, (stats) => {
       setGameStats(stats);
-      // Sync status heavily to check for Game Over
       if (engineRef.current?.status !== status) {
         setStatus(engineRef.current?.status || GameStatus.MENU);
       }
@@ -40,8 +61,9 @@ export default function App() {
       if (engineRef.current && inputRef.current) {
         const move = inputRef.current.getMovementVector();
         const shoot = inputRef.current.getShootingDirection();
-        const restart = inputRef.current.keys['KeyR'] || false;
+        const restart = inputRef.current.isRestartPressed();
         
+        // Pass restart logic to engine
         engineRef.current.update({ move, shoot, restart });
         engineRef.current.draw();
       }
@@ -57,25 +79,61 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Update InputManager when settings change
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.updateKeyMap(settings.keyMap);
+    }
+  }, [settings.keyMap]);
+
+  // Key Binding Listener
+  useEffect(() => {
+    if (!waitingForKey) return;
+
+    const handleRebind = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const code = e.code;
+      // Simple validation to prevent breaking keys (like Escape)
+      if (code === 'Escape') {
+          setWaitingForKey(null);
+          return;
+      }
+
+      setSettings(prev => ({
+        ...prev,
+        keyMap: {
+          ...prev.keyMap,
+          [waitingForKey]: code
+        }
+      }));
+      setWaitingForKey(null);
+    };
+
+    window.addEventListener('keydown', handleRebind, { once: true });
+    return () => window.removeEventListener('keydown', handleRebind);
+  }, [waitingForKey]);
+
+
   const startGame = () => {
     if (engineRef.current) {
       engineRef.current.startNewGame();
       setStatus(GameStatus.PLAYING);
-      // Focus canvas for key events
+      setShowSettings(false);
       canvasRef.current?.focus();
     }
   };
 
-  // UI Helpers
   const renderHearts = () => {
     if (!gameStats) return null;
     const hearts = [];
     const count = Math.ceil(gameStats.maxHp / 2);
     for(let i=0; i<count; i++) {
         const val = gameStats.hp - (i*2);
-        let color = 'bg-gray-800'; // empty
-        if (val >= 2) color = 'bg-red-600'; // full
-        else if (val === 1) color = 'bg-red-900'; // half (simulated by darker red here)
+        let color = 'bg-gray-800';
+        if (val >= 2) color = 'bg-red-600';
+        else if (val === 1) color = 'bg-red-900';
         
         hearts.push(
             <div key={i} className={`w-6 h-6 rounded-sm ${color} border-2 border-red-950 mr-1 shadow-md`}></div>
@@ -85,9 +143,8 @@ export default function App() {
   };
 
   const renderMinimap = () => {
-      if (!gameStats || !gameStats.dungeon) return null;
+      if (!settings.showMinimap || !gameStats || !gameStats.dungeon) return null;
 
-      // Find bounds
       const xs = gameStats.dungeon.map(r => r.x);
       const ys = gameStats.dungeon.map(r => r.y);
       const minX = Math.min(...xs);
@@ -106,9 +163,7 @@ export default function App() {
           }}>
               {gameStats.dungeon.map((room, i) => {
                   if (!room.visited) return null;
-
                   const isCurrent = room.x === gameStats.currentRoomPos.x && room.y === gameStats.currentRoomPos.y;
-                  
                   let bgColor = 'bg-gray-500';
                   if (room.type === 'BOSS') bgColor = 'bg-red-900';
                   if (room.type === 'ITEM') bgColor = 'bg-yellow-600';
@@ -129,26 +184,27 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-900 text-white font-mono">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-900 text-white font-mono select-none">
       
       {/* HUD */}
       {status === GameStatus.PLAYING && gameStats && (
         <div className="w-full max-w-3xl flex justify-between items-start mb-2 px-4 h-24">
           <div className="flex flex-col justify-end h-full">
-            <div className="text-xs text-gray-400 mb-1">HEALTH</div>
+            <div className="text-xs text-gray-400 mb-1">{t('HEALTH')}</div>
             {renderHearts()}
           </div>
           
           <div className="text-center pt-4 flex flex-col items-center">
-            <div className="text-2xl font-bold text-amber-500">FLOOR {gameStats.floor}</div>
-            <div className="text-xs text-gray-400">SCORE: {gameStats.score}</div>
+            <div className="text-2xl font-bold text-amber-500">{t('FLOOR')} {gameStats.floor}</div>
+            <div className="text-xs text-gray-400">{t('SCORE')}: {gameStats.score}</div>
           </div>
           
           <div className="flex flex-col items-end h-full">
-             <div className="text-xs text-gray-400 mb-1">MAP</div>
+             <div className="text-xs text-gray-400 mb-1">{t('MAP')}</div>
              {renderMinimap()}
              
              <div className="flex gap-1 justify-end mt-2">
+                <span className="text-xs text-gray-500 mr-2">{t('ITEMS')}</span>
                 {Array.from({length: gameStats.items}).map((_, i) => (
                     <div key={i} className="w-4 h-4 bg-purple-500 border border-purple-300"></div>
                 ))}
@@ -169,43 +225,122 @@ export default function App() {
         {gameStats?.notification && (
            <div className="absolute top-10 left-0 right-0 flex justify-center pointer-events-none animate-bounce">
               <div className="bg-black/80 border border-white/20 px-4 py-2 rounded text-amber-300 font-bold shadow-lg">
-                  {gameStats.notification}
+                  {t(gameStats.notification)}
               </div>
            </div>
         )}
         
+        {/* RESTART HINT OVERLAY (Since we removed text from canvas draw) */}
+        {status === GameStatus.PLAYING && engineRef.current && engineRef.current.restartTimer > 0 && (
+           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="text-white font-bold text-xl drop-shadow-md">{t('HOLD_R')}</div>
+           </div>
+        )}
+        
         {/* Main Menu Overlay */}
-        {status === GameStatus.MENU && (
+        {status === GameStatus.MENU && !showSettings && (
           <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-8 text-center">
-            <h1 className="text-5xl font-black text-white mb-4 tracking-tighter">PIXEL CRAWLER</h1>
-            <p className="text-gray-400 mb-8 max-w-md">
-              WASD to Move. Arrow Keys to Shoot. <br/>
-              Clear rooms, collect items, defeat the boss.
+            <h1 className="text-6xl font-black text-white mb-4 tracking-tighter">{t('GAME_TITLE')}</h1>
+            <p className="text-gray-400 mb-8 max-w-md text-sm">
+              {t('KEY_MOVE_UP')}/{t('KEY_MOVE_LEFT')}/{t('KEY_MOVE_DOWN')}/{t('KEY_MOVE_RIGHT')} <br/>
+              {t('KEY_SHOOT_UP')}/{t('KEY_SHOOT_LEFT')}/{t('KEY_SHOOT_DOWN')}/{t('KEY_SHOOT_RIGHT')}
             </p>
-            <button 
-              onClick={startGame}
-              className="px-8 py-3 bg-white text-black font-bold text-xl hover:bg-gray-200 active:scale-95 transition-transform"
-            >
-              START RUN
-            </button>
+            <div className="flex flex-col gap-4">
+              <button 
+                onClick={startGame}
+                className="px-8 py-3 bg-white text-black font-bold text-xl hover:bg-gray-200 active:scale-95 transition-transform"
+              >
+                {t('START_RUN')}
+              </button>
+              <button 
+                onClick={() => setShowSettings(true)}
+                className="px-8 py-2 border border-gray-500 text-gray-300 font-bold hover:bg-gray-800 active:scale-95 transition-transform"
+              >
+                {t('SETTINGS')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Settings Overlay */}
+        {showSettings && (
+          <div className="absolute inset-0 bg-neutral-900/95 flex flex-col items-center justify-center p-8 z-50">
+             <h2 className="text-3xl font-bold text-amber-500 mb-6">{t('SETTING_TITLE')}</h2>
+             
+             <div className="w-full max-w-md h-80 overflow-y-auto pr-2 custom-scrollbar">
+                {/* Language */}
+                <div className="mb-4">
+                    <label className="block text-gray-400 text-sm mb-1">{t('SETTING_LANG')}</label>
+                    <div className="flex gap-2">
+                        {Object.values(Language).map(lang => (
+                            <button
+                                key={lang}
+                                onClick={() => setSettings(s => ({...s, language: lang}))}
+                                className={`px-3 py-1 text-sm border ${settings.language === lang ? 'bg-amber-600 border-amber-600 text-white' : 'border-gray-600 text-gray-400 hover:border-gray-400'}`}
+                            >
+                                {lang === Language.ZH_CN ? '简' : lang === Language.ZH_TW ? '繁' : lang === Language.EN ? 'EN' : 'RU'}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Minimap */}
+                <div className="mb-6 flex items-center justify-between">
+                    <label className="text-gray-400 text-sm">{t('SETTING_MINIMAP')}</label>
+                    <button 
+                        onClick={() => setSettings(s => ({...s, showMinimap: !s.showMinimap}))}
+                        className={`w-12 h-6 rounded-full p-1 transition-colors ${settings.showMinimap ? 'bg-green-600' : 'bg-gray-700'}`}
+                    >
+                        <div className={`w-4 h-4 rounded-full bg-white transform transition-transform ${settings.showMinimap ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+
+                {/* Key Bindings */}
+                <h3 className="text-lg font-bold text-white mb-2 border-b border-gray-700 pb-1">{t('SETTING_KEYS')}</h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    {Object.keys(DEFAULT_KEYMAP).map((key) => {
+                       const mapKey = key as keyof KeyMap;
+                       return (
+                         <div key={key} className="flex justify-between items-center bg-white/5 p-2 rounded">
+                            <span className="text-gray-400">{t(`KEY_${mapKey.replace(/([A-Z])/g, '_$1').toUpperCase()}`)}</span>
+                            <button 
+                                onClick={() => setWaitingForKey(mapKey)}
+                                className={`px-2 py-1 min-w-[60px] text-center font-mono text-xs border rounded ${waitingForKey === mapKey ? 'bg-amber-500 text-black border-amber-500 animate-pulse' : 'bg-black text-amber-200 border-gray-600 hover:border-white'}`}
+                            >
+                                {waitingForKey === mapKey ? '...' : settings.keyMap[mapKey]}
+                            </button>
+                         </div>
+                       );
+                    })}
+                </div>
+             </div>
+
+             {waitingForKey && <div className="mt-4 text-amber-400 font-bold animate-bounce">{t('WAITING_FOR_KEY')}</div>}
+
+             <button 
+                onClick={() => setShowSettings(false)}
+                className="mt-6 px-8 py-2 bg-white text-black font-bold hover:bg-gray-200"
+             >
+                {t('CLOSE')}
+             </button>
           </div>
         )}
 
         {/* Game Over Overlay */}
         {status === GameStatus.GAME_OVER && (
           <div className="absolute inset-0 bg-red-900/90 flex flex-col items-center justify-center p-8 text-center">
-            <h1 className="text-6xl font-black text-white mb-2">YOU DIED</h1>
+            <h1 className="text-6xl font-black text-white mb-2">{t('GAME_OVER')}</h1>
             <p className="text-red-200 text-xl mb-8">
-              Floor reached: {gameStats?.floor} <br/>
-              Score: {gameStats?.score}
+              {t('FLOOR')}: {gameStats?.floor} <br/>
+              {t('SCORE')}: {gameStats?.score}
             </p>
             <button 
               onClick={startGame}
               className="px-8 py-3 bg-red-500 text-white font-bold text-xl hover:bg-red-400 active:scale-95 transition-transform"
             >
-              TRY AGAIN
+              {t('TRY_AGAIN')}
             </button>
-            <p className="text-white/50 mt-4 text-sm">Hold 'R' to Quick Restart</p>
+            <p className="text-white/50 mt-4 text-sm">{t('RESTART_HINT')}</p>
           </div>
         )}
       </div>

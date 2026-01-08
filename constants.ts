@@ -148,6 +148,8 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     ITEM_TRIPLE_SHOT_DESC: "三发散射",
     ITEM_QUAD_SHOT_NAME: "复眼",
     ITEM_QUAD_SHOT_DESC: "四发散射",
+    ITEM_KNOCKBACK_UP_NAME: "重拳手套",
+    ITEM_KNOCKBACK_UP_DESC: "击退效果 +20%",
     
     PICKUP_HEART_NAME: "心脏",
     PICKUP_HEART_DESC: "恢复 1 格生命",
@@ -202,6 +204,8 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     ITEM_TRIPLE_SHOT_DESC: "三發散射",
     ITEM_QUAD_SHOT_NAME: "複眼",
     ITEM_QUAD_SHOT_DESC: "四發散射",
+    ITEM_KNOCKBACK_UP_NAME: "重拳手套",
+    ITEM_KNOCKBACK_UP_DESC: "擊退效果 +20%",
     
     PICKUP_HEART_NAME: "心臟",
     PICKUP_HEART_DESC: "恢復 1 格生命",
@@ -256,6 +260,8 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     ITEM_TRIPLE_SHOT_DESC: "Triple Shot",
     ITEM_QUAD_SHOT_NAME: "Compound Eye",
     ITEM_QUAD_SHOT_DESC: "Quad Shot",
+    ITEM_KNOCKBACK_UP_NAME: "Heavy Glove",
+    ITEM_KNOCKBACK_UP_DESC: "Knockback +20%",
     
     PICKUP_HEART_NAME: "Heart",
     PICKUP_HEART_DESC: "Recover 1 HP",
@@ -310,6 +316,8 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     ITEM_TRIPLE_SHOT_DESC: "Тройной Выстрел",
     ITEM_QUAD_SHOT_NAME: "Фасетчатый Глаз",
     ITEM_QUAD_SHOT_DESC: "Четверной Выстрел",
+    ITEM_KNOCKBACK_UP_NAME: "Тяжелая Перчатка",
+    ITEM_KNOCKBACK_UP_DESC: "Отбрасывание +20%",
 
     PICKUP_HEART_NAME: "Сердце",
     PICKUP_HEART_DESC: "Восст. 1 ОЗ",

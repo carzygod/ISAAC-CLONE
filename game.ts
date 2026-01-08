@@ -1,7 +1,7 @@
 import { CONSTANTS } from './constants';
 import { 
   Entity, PlayerEntity, EnemyEntity, ProjectileEntity, ItemEntity, 
-  EntityType, EnemyType, Direction, Stats, ItemType, GameStatus, Room, Rect 
+  EntityType, EnemyType, Direction, Stats, ItemType, GameStatus, Room, Rect, Vector2 
 } from './types';
 import { uuid, checkAABB, distance, normalizeVector, SeededRNG } from './utils';
 import { generateDungeon, carveDoors } from './dungeon';
@@ -64,6 +64,7 @@ export class GameEngine {
       w: CONSTANTS.PLAYER_SIZE,
       h: CONSTANTS.PLAYER_SIZE,
       velocity: { x: 0, y: 0 },
+      knockbackVelocity: { x: 0, y: 0 },
       color: CONSTANTS.COLORS.PLAYER,
       markedForDeletion: false,
       stats: {
@@ -75,7 +76,8 @@ export class GameEngine {
         shotSpeed: 7 * 0.9,   // 6.3
         range: 400,
         shotSpread: 1,
-        bulletScale: 1
+        bulletScale: 1,
+        knockback: 10 // Base Knockback Force
       },
       cooldown: 0,
       invincibleTimer: 0,
@@ -140,6 +142,9 @@ export class GameEngine {
     const maxX = cx + doorW/2 - this.player.w;
     const minY = cy - doorW/2; 
     const maxY = cy + doorW/2 - this.player.h;
+
+    // Reset Player Physics
+    this.player.knockbackVelocity = {x:0, y:0};
 
     // Logic: If I moved UP to enter, I spawn at the BOTTOM of the new room.
     if (inputDir === Direction.UP) {
@@ -226,6 +231,7 @@ export class GameEngine {
             x: ex, y: ey,
             w: size, h: size,
             velocity: { x: 0, y: 0 },
+            knockbackVelocity: { x: 0, y: 0 },
             color: color,
             markedForDeletion: false,
             enemyType: eType,
@@ -246,6 +252,7 @@ export class GameEngine {
           x: x - 40, y: y - 40,
           w: 80, h: 80,
           velocity: {x:0, y:0},
+          knockbackVelocity: { x: 0, y: 0 },
           color: CONSTANTS.COLORS.ENEMY_BOSS,
           markedForDeletion: false,
           enemyType: EnemyType.BOSS,
@@ -276,6 +283,7 @@ export class GameEngine {
           case ItemType.BULLET_SIZE_UP: nameKey = "ITEM_BULLET_SIZE_UP_NAME"; descKey = "ITEM_BULLET_SIZE_UP_DESC"; break;
           case ItemType.TRIPLE_SHOT: nameKey = "ITEM_TRIPLE_SHOT_NAME"; descKey = "ITEM_TRIPLE_SHOT_DESC"; break;
           case ItemType.QUAD_SHOT: nameKey = "ITEM_QUAD_SHOT_NAME"; descKey = "ITEM_QUAD_SHOT_DESC"; break;
+          case ItemType.KNOCKBACK_UP: nameKey = "ITEM_KNOCKBACK_UP_NAME"; descKey = "ITEM_KNOCKBACK_UP_DESC"; break;
       }
 
       const item: ItemEntity = {
@@ -286,6 +294,7 @@ export class GameEngine {
           w: CONSTANTS.ITEM_SIZE,
           h: CONSTANTS.ITEM_SIZE,
           velocity: {x:0, y:0},
+          knockbackVelocity: { x: 0, y: 0 },
           color: CONSTANTS.COLORS.ITEM,
           markedForDeletion: false,
           itemType: type,
@@ -304,6 +313,7 @@ export class GameEngine {
           w: 16,
           h: 16,
           velocity: {x:0, y:0},
+          knockbackVelocity: { x: 0, y: 0 },
           color: CONSTANTS.COLORS.HEART,
           markedForDeletion: false,
           itemType: ItemType.HEART_PICKUP,
@@ -320,6 +330,7 @@ export class GameEngine {
           x: x - 24, y: y - 24,
           w: 48, h: 48,
           velocity: {x:0,y:0},
+          knockbackVelocity: { x: 0, y: 0 },
           color: CONSTANTS.COLORS.TRAPDOOR,
           markedForDeletion: false
       };
@@ -351,6 +362,7 @@ export class GameEngine {
     }
 
     // --- Player Logic ---
+    // Apply Input Velocity
     if (input.move.x !== 0 || input.move.y !== 0) {
         this.player.velocity.x = input.move.x * this.player.stats.speed;
         this.player.velocity.y = input.move.y * this.player.stats.speed;
@@ -359,6 +371,8 @@ export class GameEngine {
         this.player.velocity.y = 0;
     }
 
+    // Apply Knockback Physics
+    this.applyPhysics(this.player);
     this.resolveWallCollision(this.player);
 
     // Shooting
@@ -370,6 +384,9 @@ export class GameEngine {
 
     // Invincibility
     if (this.player.invincibleTimer > 0) this.player.invincibleTimer--;
+    // Flash Timer (Visuals)
+    if (this.player.flashTimer && this.player.flashTimer > 0) this.player.flashTimer--;
+
 
     // --- Entity Loop ---
     const enemies = this.entities.filter(e => e.type === EntityType.ENEMY) as EnemyEntity[];
@@ -408,9 +425,18 @@ export class GameEngine {
     this.entities.forEach(e => {
         if (e.markedForDeletion) return;
 
-        // Move
-        e.x += e.velocity.x;
-        e.y += e.velocity.y;
+        // Apply Physics (Knockback decay + Velocity addition)
+        if (e.type === EntityType.ENEMY) {
+            this.applyPhysics(e);
+        } else if (e.type !== EntityType.PROJECTILE) {
+            // Static items/traps/projectiles handled separately
+            // Actually projectiles have their own movement logic
+            e.x += e.velocity.x;
+            e.y += e.velocity.y;
+        }
+        
+        // Flash Timer Decay
+        if (e.flashTimer && e.flashTimer > 0) e.flashTimer--;
 
         // Type Specific Logic
         if (e.type === EntityType.PROJECTILE) {
@@ -442,8 +468,29 @@ export class GameEngine {
         notification: this.notification, // Send notification key
         // Minimap Data
         dungeon: this.dungeon.map(r => ({x: r.x, y: r.y, type: r.type, visited: r.visited})),
-        currentRoomPos: this.currentRoom ? {x: this.currentRoom.x, y: this.currentRoom.y} : {x:0, y:0}
+        currentRoomPos: this.currentRoom ? {x: this.currentRoom.x, y: this.currentRoom.y} : {x:0, y:0},
+        // Stats for Side Panel
+        stats: this.player.stats
     });
+  }
+  
+  applyPhysics(ent: Entity) {
+      // 1. Decay Knockback
+      ent.knockbackVelocity.x *= 0.85;
+      ent.knockbackVelocity.y *= 0.85;
+      
+      // Threshold to stop micro-movements
+      if (Math.abs(ent.knockbackVelocity.x) < 0.1) ent.knockbackVelocity.x = 0;
+      if (Math.abs(ent.knockbackVelocity.y) < 0.1) ent.knockbackVelocity.y = 0;
+
+      // 2. Add Knockback to current Velocity (temporarily for this frame)
+      // Note: We modify the position directly with velocity + knockback
+      // But resolveWallCollision expects 'velocity' to be the delta.
+      // So we add knockback to velocity before collision, then restore it?
+      // Better: Just add it. For enemies, velocity is recalculated every frame by AI anyway.
+      // For player, velocity is set by Input every frame.
+      ent.velocity.x += ent.knockbackVelocity.x;
+      ent.velocity.y += ent.knockbackVelocity.y;
   }
 
   resolveEnemyPhysics(enemies: EnemyEntity[]) {
@@ -482,6 +529,7 @@ export class GameEngine {
       
       const speed = stats ? stats.shotSpeed : 5 * 0.9; // 10% Slower for Enemies too
       const damage = stats ? stats.damage : 1;
+      const knockback = stats ? stats.knockback : 0;
       
       // Feature: Bullet size proportional to attack damage
       // Base Size + (Damage / BaseDamage * scaling)
@@ -507,10 +555,12 @@ export class GameEngine {
               y: owner.y + owner.h/2 - baseSize/2,
               w: baseSize, h: baseSize,
               velocity: { x: vx * speed, y: vy * speed },
+              knockbackVelocity: { x: 0, y: 0 },
               color: isPlayer ? CONSTANTS.COLORS.PROJECTILE_FRIENDLY : CONSTANTS.COLORS.PROJECTILE_ENEMY,
               markedForDeletion: false,
               ownerId: owner.id,
               damage,
+              knockback, // Pass force
               lifeTime: range
           } as ProjectileEntity);
       };
@@ -541,6 +591,10 @@ export class GameEngine {
   }
 
   updateProjectile(p: ProjectileEntity) {
+      // Manual movement for projectiles (since they skip the main entity loop physics for simpler logic)
+      p.x += p.velocity.x;
+      p.y += p.velocity.y;
+
       p.lifeTime -= Math.abs(p.velocity.x) + Math.abs(p.velocity.y); 
       if (p.lifeTime <= 0) {
           p.markedForDeletion = true;
@@ -560,7 +614,10 @@ export class GameEngine {
            for (const enemy of enemies) {
                if (checkAABB(p, enemy)) {
                    p.markedForDeletion = true;
-                   this.damageEnemy(enemy as EnemyEntity, p.damage);
+                   
+                   // Calculate Hit Direction (Projectile Velocity Normalized)
+                   const hitDir = normalizeVector(p.velocity);
+                   this.damageEnemy(enemy as EnemyEntity, p.damage, p.knockback, hitDir);
                    return;
                }
            }
@@ -568,7 +625,10 @@ export class GameEngine {
           // Hit Player
           if (checkAABB(p, this.player)) {
               p.markedForDeletion = true;
-              this.damagePlayer(1); 
+              
+              // Enemy projectile knockback is usually fixed or low
+              const hitDir = normalizeVector(p.velocity);
+              this.damagePlayer(1, 10, hitDir); 
           }
       }
   }
@@ -635,15 +695,23 @@ export class GameEngine {
       
       // Contact Damage
       if (checkAABB(e, this.player)) {
-          this.damagePlayer(1);
+          // Contact pushback
+          const dir = normalizeVector({x: this.player.x - e.x, y: this.player.y - e.y});
+          this.damagePlayer(1, 15, dir);
       }
   }
 
-  damagePlayer(amount: number) {
+  damagePlayer(amount: number, knockbackForce: number = 0, knockbackDir: Vector2 = {x:0, y:0}) {
       if (this.player.invincibleTimer > 0) return;
       this.player.stats.hp -= amount;
       this.player.invincibleTimer = 60; // 1 sec invincibility
-      this.player.color = CONSTANTS.COLORS.PLAYER_HIT;
+      this.player.flashTimer = 10; // Visual flash
+      this.player.color = CONSTANTS.COLORS.PLAYER_HIT; // Legacy color fallback
+
+      // Apply Knockback
+      this.player.knockbackVelocity.x += knockbackDir.x * knockbackForce;
+      this.player.knockbackVelocity.y += knockbackDir.y * knockbackForce;
+
       setTimeout(() => this.player.color = CONSTANTS.COLORS.PLAYER, 200);
 
       if (this.player.stats.hp <= 0) {
@@ -651,10 +719,18 @@ export class GameEngine {
       }
   }
 
-  damageEnemy(e: EnemyEntity, amount: number) {
+  damageEnemy(e: EnemyEntity, amount: number, knockbackForce: number = 0, knockbackDir: Vector2 = {x:0, y:0}) {
       e.hp -= amount;
-      e.x += (Math.random() - 0.5) * 5; // Shake/Knockback
-      e.y += (Math.random() - 0.5) * 5;
+      e.flashTimer = 5; // Hit flash
+
+      // Apply Knockback
+      // Tanks resist knockback
+      let actualForce = knockbackForce;
+      if (e.enemyType === EnemyType.TANK) actualForce *= 0.2;
+      if (e.enemyType === EnemyType.BOSS) actualForce *= 0.1;
+
+      e.knockbackVelocity.x += knockbackDir.x * actualForce;
+      e.knockbackVelocity.y += knockbackDir.y * actualForce;
       
       if (e.hp <= 0) {
           e.markedForDeletion = true;
@@ -663,10 +739,6 @@ export class GameEngine {
           // 5% Chance to drop Heart Pickup
           if (Math.random() < 0.05) {
               this.spawnPickup(e.x + e.w/2, e.y + e.h/2);
-          }
-
-          if (e.enemyType === EnemyType.BOSS) {
-               // Boss logic
           }
       }
   }
@@ -716,6 +788,7 @@ export class GameEngine {
           case ItemType.BULLET_SIZE_UP: s.bulletScale += 0.5; break;
           case ItemType.TRIPLE_SHOT: s.shotSpread = 3; break;
           case ItemType.QUAD_SHOT: s.shotSpread = 4; break;
+          case ItemType.KNOCKBACK_UP: s.knockback *= 1.2; break; // +20% Knockback
       }
   }
 
@@ -945,11 +1018,16 @@ export class GameEngine {
               // Draw Sprite
               this.ctx.drawImage(img, e.x, e.y, e.w, e.h);
               
-              // Flash effect for invincibility (Player)
-              if (e.type === EntityType.PLAYER && (e as PlayerEntity).invincibleTimer > 0) {
-                  if (Math.floor((e as PlayerEntity).invincibleTimer / 4) % 2 === 0) {
+              // Flash effect logic
+              // Combine invincible timer (player) and flash timer (everyone)
+              const isInvincible = e.type === EntityType.PLAYER && (e as PlayerEntity).invincibleTimer > 0;
+              const isFlashing = e.flashTimer && e.flashTimer > 0;
+
+              if (isInvincible || isFlashing) {
+                  if (isFlashing || (isInvincible && Math.floor((e as PlayerEntity).invincibleTimer / 4) % 2 === 0)) {
                        this.ctx.globalCompositeOperation = 'source-atop';
-                       this.ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                       // White flash for hit feedback
+                       this.ctx.fillStyle = 'rgba(255,255,255,0.7)';
                        this.ctx.fillRect(e.x, e.y, e.w, e.h);
                        this.ctx.globalCompositeOperation = 'source-over';
                   }

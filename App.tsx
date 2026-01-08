@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { GameEngine } from './game';
 import { InputManager } from './utils';
-import { GameStatus, Settings, Language, KeyMap } from './types';
+import { GameStatus, Settings, Language, KeyMap, Stats } from './types';
 import { CONSTANTS, TRANSLATIONS, DEFAULT_KEYMAP } from './constants';
 
 export default function App() {
@@ -20,6 +20,7 @@ export default function App() {
     notification: string | null;
     dungeon: {x:number, y:number, type: string, visited: boolean}[];
     currentRoomPos: {x:number, y:number};
+    stats?: Stats; // New Full Stats
   } | null>(null);
   
   const [status, setStatus] = useState<GameStatus>(GameStatus.MENU);
@@ -213,33 +214,56 @@ export default function App() {
         </div>
       )}
 
-      {/* Game Container */}
-      <div className="relative group">
+      {/* Game Container Wrapper for Relative Positioning */}
+      <div className="relative group flex">
+        
+        {/* SIDEBAR STATS */}
+        {status === GameStatus.PLAYING && gameStats?.stats && (
+            <div className="absolute -left-16 top-1/2 transform -translate-y-1/2 flex flex-col gap-2 bg-black/60 p-2 rounded-l border-y border-l border-gray-700 backdrop-blur-sm z-10">
+                <div className="flex items-center gap-2" title="Fire Rate">
+                    <span className="text-lg">⚡</span>
+                    <span className="text-xs font-bold text-yellow-300">{(60 / gameStats.stats.fireRate).toFixed(1)}</span>
+                </div>
+                <div className="flex items-center gap-2" title="Range">
+                    <span className="text-lg">🔭</span>
+                    <span className="text-xs font-bold text-green-300">{Math.round(gameStats.stats.range)}</span>
+                </div>
+                <div className="flex items-center gap-2" title="Move Speed">
+                    <span className="text-lg">👟</span>
+                    <span className="text-xs font-bold text-blue-300">{gameStats.stats.speed.toFixed(1)}</span>
+                </div>
+                <div className="flex items-center gap-2" title="Knockback">
+                    <span className="text-lg">🥊</span>
+                    <span className="text-xs font-bold text-red-300">{Math.round(gameStats.stats.knockback)}</span>
+                </div>
+            </div>
+        )}
+
         <canvas
           ref={canvasRef}
-          className="bg-black border-4 border-neutral-700 shadow-2xl rounded-sm cursor-none"
+          className="bg-black border-4 border-neutral-700 shadow-2xl rounded-sm cursor-none z-0"
           style={{ width: CONSTANTS.CANVAS_WIDTH, height: CONSTANTS.CANVAS_HEIGHT }}
         />
 
         {/* Item Notification Overlay */}
         {gameStats?.notification && (
-           <div className="absolute top-10 left-0 right-0 flex justify-center pointer-events-none animate-bounce">
+           <div className="absolute top-10 left-0 right-0 flex justify-center pointer-events-none animate-bounce z-20">
               <div className="bg-black/80 border border-white/20 px-4 py-2 rounded text-amber-300 font-bold shadow-lg">
                   {t(gameStats.notification)}
               </div>
            </div>
         )}
         
-        {/* RESTART HINT OVERLAY (Since we removed text from canvas draw) */}
+        {/* RESTART HINT OVERLAY */}
         {status === GameStatus.PLAYING && engineRef.current && engineRef.current.restartTimer > 0 && (
-           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
               <div className="text-white font-bold text-xl drop-shadow-md">{t('HOLD_R')}</div>
            </div>
         )}
         
         {/* Main Menu Overlay */}
         {status === GameStatus.MENU && !showSettings && (
-          <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-8 text-center">
+          <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-8 text-center z-40">
             <h1 className="text-6xl font-black text-white mb-4 tracking-tighter">{t('GAME_TITLE')}</h1>
             <p className="text-gray-400 mb-8 max-w-md text-sm">
               {t('KEY_MOVE_UP')}/{t('KEY_MOVE_LEFT')}/{t('KEY_MOVE_DOWN')}/{t('KEY_MOVE_RIGHT')} <br/>
@@ -328,7 +352,7 @@ export default function App() {
 
         {/* Game Over Overlay */}
         {status === GameStatus.GAME_OVER && (
-          <div className="absolute inset-0 bg-red-900/90 flex flex-col items-center justify-center p-8 text-center">
+          <div className="absolute inset-0 bg-red-900/90 flex flex-col items-center justify-center p-8 text-center z-40">
             <h1 className="text-6xl font-black text-white mb-2">{t('GAME_OVER')}</h1>
             <p className="text-red-200 text-xl mb-8">
               {t('FLOOR')}: {gameStats?.floor} <br/>

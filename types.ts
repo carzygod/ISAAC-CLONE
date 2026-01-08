@@ -48,7 +48,8 @@ export enum ItemType {
   BULLET_SIZE_UP = 'BULLET_SIZE_UP', 
   TRIPLE_SHOT = 'TRIPLE_SHOT',     
   QUAD_SHOT = 'QUAD_SHOT',
-  HEART_PICKUP = 'HEART_PICKUP'   // New Pickup
+  KNOCKBACK_UP = 'KNOCKBACK_UP', // New Item
+  HEART_PICKUP = 'HEART_PICKUP'
 }
 
 export enum Language {
@@ -82,11 +83,12 @@ export interface Stats {
   maxHp: number;
   speed: number;
   damage: number;
-  fireRate: number; // Cooldown in frames
+  fireRate: number; // Cooldown in frames (Lower is faster)
   shotSpeed: number;
   range: number;
   shotSpread: number; // 1 = normal, 3 = triple, 4 = quad
   bulletScale: number; // Multiplier for size
+  knockback: number; // New Stat: Force of impact
 }
 
 export interface Rect {
@@ -100,8 +102,10 @@ export interface Entity extends Rect {
   id: string;
   type: EntityType;
   velocity: Vector2;
+  knockbackVelocity: Vector2; // Physics: Impact velocity that decays over time
   color: string;
   markedForDeletion: boolean;
+  flashTimer?: number; // Visual: Flash white when hit
 }
 
 export interface PlayerEntity extends Entity {
@@ -123,6 +127,7 @@ export interface EnemyEntity extends Entity {
 export interface ProjectileEntity extends Entity {
   ownerId: string; // 'player' or enemy ID
   damage: number;
+  knockback: number; // Force carried by projectile
   lifeTime: number;
 }
 

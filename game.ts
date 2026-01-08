@@ -5,10 +5,12 @@ import {
 } from './types';
 import { uuid, checkAABB, distance, normalizeVector, SeededRNG } from './utils';
 import { generateDungeon, carveDoors } from './dungeon';
+import { AssetLoader } from './assets';
 
 export class GameEngine {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
+  assets: AssetLoader;
   
   status: GameStatus = GameStatus.MENU;
   floorLevel: number = 1;
@@ -34,6 +36,7 @@ export class GameEngine {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { alpha: false })!;
     this.onUiUpdate = onUiUpdate;
+    this.assets = new AssetLoader();
     this.canvas.width = CONSTANTS.CANVAS_WIDTH;
     this.canvas.height = CONSTANTS.CANVAS_HEIGHT;
 
@@ -824,17 +827,21 @@ export class GameEngine {
   }
 
   draw() {
-      // Clear
-      this.ctx.fillStyle = CONSTANTS.COLORS.BG;
+      // Clear with Palette BG
+      this.ctx.fillStyle = CONSTANTS.PALETTE.BG;
       this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
       if (!this.currentRoom) return;
 
-      // Draw Room Tiles
       const ts = CONSTANTS.TILE_SIZE;
       const map = this.currentRoom.layout;
 
       const visualMap = carveDoors(map.map(r => [...r]), this.currentRoom.cleared ? this.currentRoom.doors : {});
+
+      // --- Draw Map ---
+      const wallImg = this.assets.get('WALL');
+      const floorImg = this.assets.get('FLOOR');
+      const rockImg = this.assets.get('ROCK');
 
       for (let r = 0; r < visualMap.length; r++) {
           for (let c = 0; c < visualMap[0].length; c++) {
@@ -842,125 +849,126 @@ export class GameEngine {
               const x = c * ts;
               const y = r * ts;
 
-              if (tile === 1) { // Wall
-                  this.ctx.fillStyle = CONSTANTS.COLORS.WALL;
+              // Draw Floor everywhere first
+              if (floorImg) this.ctx.drawImage(floorImg, x, y);
+
+              if (tile === 1 && wallImg) { // Wall
+                  this.ctx.drawImage(wallImg, x, y);
+              } else if (tile === 2 && rockImg) { // Rock
+                  this.ctx.drawImage(rockImg, x, y);
+              } else if (tile === 3) { // Door floor (Open)
+                  // Floor already drawn
+                  this.ctx.fillStyle = CONSTANTS.PALETTE.DOOR_OPEN;
+                  this.ctx.globalAlpha = 0.5;
                   this.ctx.fillRect(x, y, ts, ts);
-              } else if (tile === 2) { // Rock
-                  this.ctx.fillStyle = CONSTANTS.COLORS.FLOOR; // Floor under rock
-                  this.ctx.fillRect(x, y, ts, ts);
-                  this.ctx.fillStyle = CONSTANTS.COLORS.ROCK;
-                  this.ctx.fillRect(x + 4, y + 4, ts - 8, ts - 8);
-              } else if (tile === 3) { // Door floor
-                  this.ctx.fillStyle = CONSTANTS.COLORS.DOOR_OPEN;
-                  this.ctx.fillRect(x, y, ts, ts);
-              } else { // Floor
-                  this.ctx.fillStyle = CONSTANTS.COLORS.FLOOR;
-                  this.ctx.fillRect(x, y, ts, ts);
-                  // Grid detail
-                  this.ctx.strokeStyle = '#2a2a2a';
-                  this.ctx.strokeRect(x,y,ts,ts);
+                  this.ctx.globalAlpha = 1.0;
               }
           }
       }
 
-      // Draw Doors (Locked/Closed) and Arrows
+      // --- Draw Doors Logic ---
       const doors = this.currentRoom.doors;
       const cx = Math.floor(visualMap[0].length / 2) * ts;
       const cy = Math.floor(visualMap.length / 2) * ts;
 
       // Draw Door Locks (if not cleared)
       if (!this.currentRoom.cleared) {
-          this.ctx.fillStyle = CONSTANTS.COLORS.DOOR;
+          this.ctx.fillStyle = CONSTANTS.PALETTE.DOOR_LOCKED;
           
-          // STRICT check: only draw if the door direction has a room (doors.KEY is true)
           if(doors.UP) this.ctx.fillRect(cx, 0, ts, ts);
           if(doors.DOWN) this.ctx.fillRect(cx, this.canvas.height - ts, ts, ts);
           if(doors.LEFT) this.ctx.fillRect(0, cy, ts, ts);
           if(doors.RIGHT) this.ctx.fillRect(this.canvas.width - ts, cy, ts, ts);
+          
+          // Add Cross detail
+          this.ctx.fillStyle = '#111';
+          const inset = 12;
+          const rect = (x:number, y:number) => this.ctx.fillRect(x+inset, y+inset, ts-inset*2, ts-inset*2);
+          if(doors.UP) rect(cx, 0);
+          if(doors.DOWN) rect(cx, this.canvas.height - ts);
+          if(doors.LEFT) rect(0, cy);
+          if(doors.RIGHT) rect(this.canvas.width - ts, cy);
       }
 
-      // Draw Direction Arrows (If door exists, even if cleared)
-      // New feature: 50% opacity arrows
+      // Draw Arrows
       this.ctx.save();
       this.ctx.globalAlpha = 0.5;
       this.ctx.fillStyle = '#FFFFFF';
-      
       const arrowSize = 10;
       
-      if (doors.UP) {
+      const drawArrow = (x: number, y: number, rot: number) => {
+        this.ctx.save();
+        this.ctx.translate(x, y);
+        this.ctx.rotate(rot);
         this.ctx.beginPath();
-        this.ctx.moveTo(cx + ts/2, 10);
-        this.ctx.lineTo(cx + ts/2 - arrowSize, 10 + arrowSize);
-        this.ctx.lineTo(cx + ts/2 + arrowSize, 10 + arrowSize);
+        this.ctx.moveTo(0, 0);
+        this.ctx.lineTo(-arrowSize, arrowSize);
+        this.ctx.lineTo(arrowSize, arrowSize);
         this.ctx.fill();
+        this.ctx.restore();
       }
-      if (doors.DOWN) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(cx + ts/2, this.canvas.height - 10);
-        this.ctx.lineTo(cx + ts/2 - arrowSize, this.canvas.height - 10 - arrowSize);
-        this.ctx.lineTo(cx + ts/2 + arrowSize, this.canvas.height - 10 - arrowSize);
-        this.ctx.fill();
-      }
-      if (doors.LEFT) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(10, cy + ts/2);
-        this.ctx.lineTo(10 + arrowSize, cy + ts/2 - arrowSize);
-        this.ctx.lineTo(10 + arrowSize, cy + ts/2 + arrowSize);
-        this.ctx.fill();
-      }
-      if (doors.RIGHT) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(this.canvas.width - 10, cy + ts/2);
-        this.ctx.lineTo(this.canvas.width - 10 - arrowSize, cy + ts/2 - arrowSize);
-        this.ctx.lineTo(this.canvas.width - 10 - arrowSize, cy + ts/2 + arrowSize);
-        this.ctx.fill();
-      }
+
+      if (doors.UP) drawArrow(cx + ts/2, 10, 0);
+      if (doors.DOWN) drawArrow(cx + ts/2, this.canvas.height - 10, Math.PI);
+      if (doors.LEFT) drawArrow(10, cy + ts/2, -Math.PI/2);
+      if (doors.RIGHT) drawArrow(this.canvas.width - 10, cy + ts/2, Math.PI/2);
       this.ctx.restore();
 
 
-      // Entities
+      // --- Draw Entities ---
       [...this.entities, this.player].forEach(e => {
-          this.ctx.fillStyle = e.color;
-          if (e.type === EntityType.PLAYER || e.type === EntityType.ENEMY) {
-             this.ctx.fillRect(e.x, e.y, e.w, e.h);
-             // HP Bar for Boss
-             if ((e as EnemyEntity).enemyType === EnemyType.BOSS) {
+          let img = null;
+          
+          // Match Entity Type to Asset
+          if (e.type === EntityType.PLAYER) img = this.assets.get('PLAYER');
+          else if (e.type === EntityType.ITEM) {
+               img = (e as ItemEntity).itemType === ItemType.HEART_PICKUP 
+                   ? this.assets.get('HEART') 
+                   : this.assets.get('ITEM');
+          }
+          else if (e.type === EntityType.PROJECTILE) {
+              const p = e as ProjectileEntity;
+              img = p.ownerId === 'player' ? this.assets.get('PROJ_PLAYER') : this.assets.get('PROJ_ENEMY');
+          }
+          else if (e.type === EntityType.ENEMY) {
+              const en = e as EnemyEntity;
+              switch(en.enemyType) {
+                  case EnemyType.CHASER: img = this.assets.get('ENEMY_CHASER'); break;
+                  case EnemyType.SHOOTER: img = this.assets.get('ENEMY_SHOOTER'); break;
+                  case EnemyType.TANK: img = this.assets.get('ENEMY_TANK'); break;
+                  case EnemyType.BOSS: img = this.assets.get('ENEMY_BOSS'); break;
+                  default: img = this.assets.get('ENEMY_CHASER');
+              }
+          }
+
+          if (img) {
+              // Draw Sprite
+              this.ctx.drawImage(img, e.x, e.y, e.w, e.h);
+              
+              // Flash effect for invincibility (Player)
+              if (e.type === EntityType.PLAYER && (e as PlayerEntity).invincibleTimer > 0) {
+                  if (Math.floor((e as PlayerEntity).invincibleTimer / 4) % 2 === 0) {
+                       this.ctx.globalCompositeOperation = 'source-atop';
+                       this.ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                       this.ctx.fillRect(e.x, e.y, e.w, e.h);
+                       this.ctx.globalCompositeOperation = 'source-over';
+                  }
+              }
+
+              // Draw Boss HP Bar
+              if (e.type === EntityType.ENEMY && (e as EnemyEntity).enemyType === EnemyType.BOSS) {
                  this.ctx.fillStyle = 'red';
                  this.ctx.fillRect(e.x, e.y - 10, e.w * ((e as EnemyEntity).hp / (e as EnemyEntity).maxHp), 5);
-             }
-          } else if (e.type === EntityType.PROJECTILE) {
-             this.ctx.beginPath();
-             this.ctx.arc(e.x + e.w/2, e.y + e.h/2, e.w/2, 0, Math.PI * 2);
-             this.ctx.fill();
-          } else if (e.type === EntityType.ITEM) {
-             if ((e as ItemEntity).itemType === ItemType.HEART_PICKUP) {
-                 // Draw Heart Pickup
-                 const cx = e.x + e.w/2;
-                 const cy = e.y + e.h/2;
-                 this.ctx.fillStyle = e.color;
-                 this.ctx.beginPath();
-                 this.ctx.arc(cx - 4, cy - 4, 4, 0, Math.PI, true);
-                 this.ctx.arc(cx + 4, cy - 4, 4, 0, Math.PI, true);
-                 this.ctx.lineTo(cx, cy + 6);
-                 this.ctx.fill();
-             } else {
-                 // Standard Item Box
-                 this.ctx.fillRect(e.x, e.y, e.w, e.h);
-                 this.ctx.fillStyle = 'white';
-                 this.ctx.font = '10px monospace';
-                 this.ctx.fillText("?", e.x + 6, e.y + 16);
-             }
+              }
           } else if (e.type === EntityType.TRAPDOOR) {
-              // Draw trapdoor
-              this.ctx.fillStyle = 'black';
+              this.ctx.fillStyle = CONSTANTS.PALETTE.DOOR_LOCKED;
               this.ctx.fillRect(e.x, e.y, e.w, e.h);
-              this.ctx.strokeStyle = '#333';
-              this.ctx.strokeRect(e.x, e.y, e.w, e.h);
-              // Hatch lines
-              this.ctx.beginPath();
-              this.ctx.moveTo(e.x, e.y); this.ctx.lineTo(e.x + e.w, e.y + e.h);
-              this.ctx.moveTo(e.x + e.w, e.y); this.ctx.lineTo(e.x, e.y + e.h);
-              this.ctx.stroke();
+              this.ctx.fillStyle = '#000';
+              this.ctx.fillRect(e.x + 4, e.y + 4, e.w - 8, e.h - 8);
+          } else {
+             // Fallback
+             this.ctx.fillStyle = e.color;
+             this.ctx.fillRect(e.x, e.y, e.w, e.h);
           }
       });
       
@@ -970,17 +978,6 @@ export class GameEngine {
            this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
            
-           this.ctx.fillStyle = 'white';
-           this.ctx.font = 'bold 20px monospace';
-           this.ctx.textAlign = 'center';
-           this.ctx.textBaseline = 'middle';
-           // Use raw text here as Canvas doesn't know about React state easily, 
-           // but we should Ideally pass this string in. 
-           // For prototype, we keep simple English or hardcode localized in App.tsx overlay logic
-           // Actually, since this is drawn on canvas, let's remove it and handle it in React UI?
-           // The prompt requires localization.
-           // I'll leave the bar but remove text, let React handle text overlay.
-           
            // Bar
            const maxW = 200;
            const h = 10;
@@ -988,7 +985,7 @@ export class GameEngine {
            
            this.ctx.fillStyle = '#333';
            this.ctx.fillRect(this.canvas.width/2 - maxW/2, this.canvas.height/2 + 10, maxW, h);
-           this.ctx.fillStyle = '#ef4444'; // Red
+           this.ctx.fillStyle = '#ef4444'; 
            this.ctx.fillRect(this.canvas.width/2 - maxW/2, this.canvas.height/2 + 10, maxW * pct, h);
            
            this.ctx.restore();

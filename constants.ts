@@ -2,40 +2,85 @@ import { KeyMap, Language } from "./types";
 
 export const CONSTANTS = {
   TILE_SIZE: 48,
-  // 15x9 Grid for the room (Isaac standard is 13x7 inner + walls)
   ROOM_WIDTH: 15, 
   ROOM_HEIGHT: 9,
-  CANVAS_WIDTH: 15 * 48, // 720
-  CANVAS_HEIGHT: 9 * 48, // 432
+  CANVAS_WIDTH: 15 * 48, 
+  CANVAS_HEIGHT: 9 * 48, 
   
   PLAYER_SIZE: 32,
   ENEMY_SIZE: 32,
-  PROJECTILE_SIZE: 12,
+  PROJECTILE_SIZE: 16, // Increased slightly for visibility
   ITEM_SIZE: 24,
 
-  // Frames per second for logic updates
   FPS: 60,
   
-  // Colors (Tailwind palette approximation)
+  // Revised Palette for Pixel Art Generation
+  PALETTE: {
+    // Environment
+    BG: '#121212',
+    WALL_BASE: '#2a2a2a',
+    WALL_HIGHLIGHT: '#3d3d3d',
+    WALL_SHADOW: '#1a1a1a',
+    FLOOR_BASE: '#1c1c1c',
+    FLOOR_VAR_1: '#222222',
+    FLOOR_VAR_2: '#181818',
+    ROCK_BASE: '#4a4a4a',
+    ROCK_HIGHLIGHT: '#666666',
+    
+    // Doors
+    DOOR_FRAME: '#4a3b2a',
+    DOOR_LOCKED: '#2e2216',
+    DOOR_OPEN: '#0f291e',
+
+    // Player (Cyan/Blue Knight)
+    PLAYER_MAIN: '#0ea5e9', // Sky 500
+    PLAYER_SHADOW: '#0369a1', // Sky 700
+    PLAYER_LIGHT: '#bae6fd', // Sky 200
+    PLAYER_SKIN: '#fdba74', // Orange 300
+
+    // Enemies
+    ENEMY_RED_MAIN: '#ef4444', 
+    ENEMY_RED_DARK: '#991b1b',
+    ENEMY_BLUE_MAIN: '#3b82f6',
+    ENEMY_BLUE_DARK: '#1e40af',
+    ENEMY_GREEN_MAIN: '#65a30d',
+    ENEMY_GREEN_DARK: '#3f6212',
+    BOSS_MAIN: '#7f1d1d',
+    BOSS_HIGHLIGHT: '#dc2626',
+
+    // Items
+    ITEM_GOLD: '#fbbf24',
+    ITEM_SHADOW: '#b45309',
+    HEART_MAIN: '#ef4444',
+    HEART_SHADOW: '#991b1b',
+    
+    // Projectiles
+    PROJ_PLAYER_MAIN: '#60a5fa',
+    PROJ_PLAYER_CORE: '#ffffff',
+    PROJ_ENEMY_MAIN: '#f97316',
+    PROJ_ENEMY_CORE: '#ffedd5',
+  },
+  
+  // Keep legacy color ref for fallback/UI
   COLORS: {
-    BG: '#1a1a1a',
-    WALL: '#404040',
-    FLOOR: '#262626',
-    ROCK: '#525252',
-    DOOR: '#78350f', // Amber 900
-    DOOR_OPEN: '#14532d', // Green 900
-    TRAPDOOR: '#000000',
-    PLAYER: '#06b6d4', // Cyan 500
-    PLAYER_HIT: '#cffafe', // Cyan 100
-    ENEMY: '#ef4444', // Red 500
-    ENEMY_FLYING: '#3b82f6', // Blue 500
-    ENEMY_TANK: '#3f6212', // Lime 800 (Dark Green)
-    ENEMY_ORBITER: '#db2777', // Pink 600
-    ENEMY_BOSS: '#7f1d1d', // Red 900
-    PROJECTILE_FRIENDLY: '#3b82f6', // Blue 500
-    PROJECTILE_ENEMY: '#f97316', // Orange 500
-    ITEM: '#a855f7', // Purple 500
-    HEART: '#dc2626', // Red 600
+      BG: '#1a1a1a',
+      WALL: '#404040',
+      FLOOR: '#262626',
+      ROCK: '#525252',
+      DOOR: '#78350f',
+      DOOR_OPEN: '#14532d',
+      TRAPDOOR: '#000000',
+      PLAYER: '#06b6d4',
+      PLAYER_HIT: '#cffafe',
+      ENEMY: '#ef4444',
+      ENEMY_FLYING: '#3b82f6',
+      ENEMY_TANK: '#3f6212',
+      ENEMY_ORBITER: '#db2777',
+      ENEMY_BOSS: '#7f1d1d',
+      PROJECTILE_FRIENDLY: '#3b82f6',
+      PROJECTILE_ENEMY: '#f97316',
+      ITEM: '#a855f7',
+      HEART: '#dc2626',
   }
 };
 

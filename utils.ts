@@ -105,4 +105,8 @@ export class InputManager {
   isRestartPressed(): boolean {
     return !!this.keys[this.keyMap.restart];
   }
+
+  isPausePressed(): boolean {
+      return !!this.keys[this.keyMap.pause];
+  }
 }

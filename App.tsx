@@ -4,6 +4,15 @@ import { InputManager } from './utils';
 import { GameStatus, Settings, Language, KeyMap, Stats } from './types';
 import { CONSTANTS, TRANSLATIONS, DEFAULT_KEYMAP } from './constants';
 
+const PixelHeart: React.FC<{ full: boolean }> = ({ full }) => (
+    <svg viewBox="0 0 16 16" className="w-6 h-6 mr-1 drop-shadow-md" style={{imageRendering: 'pixelated'}}>
+       <path d="M2 5 h2 v3 h-2 v-3 M4 3 h2 v2 h-2 v-2 M6 3 h4 v2 h-4 v-2 M10 3 h2 v2 h-2 v-2 M12 5 h2 v3 h-2 v-3 M2 8 h2 v3 h-2 v-3 M12 8 h2 v3 h-2 v-3 M4 11 h2 v2 h-2 v-2 M10 11 h2 v2 h-2 v-2 M6 13 h4 v2 h-4 v-2" 
+             fill={full ? "#ef4444" : "#4b5563"} /> 
+       {/* Highlight */}
+       <path d="M4 4 h2 v1 h-2 v-1 M10 4 h1 v1 h-1 v-1" fill={full ? "#fca5a5" : "#6b7280"} opacity="0.6"/>
+    </svg>
+);
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
@@ -53,6 +62,7 @@ export default function App() {
     inputRef.current = new InputManager(settings.keyMap);
     engineRef.current = new GameEngine(canvasRef.current, (stats) => {
       setGameStats(stats);
+      // Only update local status if it changed significantly to avoid re-renders during gameplay (except PAUSE)
       if (engineRef.current?.status !== status) {
         setStatus(engineRef.current?.status || GameStatus.MENU);
       }
@@ -63,9 +73,10 @@ export default function App() {
         const move = inputRef.current.getMovementVector();
         const shoot = inputRef.current.getShootingDirection();
         const restart = inputRef.current.isRestartPressed();
+        const pause = inputRef.current.isPausePressed();
         
         // Pass restart logic to engine
-        engineRef.current.update({ move, shoot, restart });
+        engineRef.current.update({ move, shoot, restart, pause });
         engineRef.current.draw();
       }
       requestRef.current = requestAnimationFrame(loop);
@@ -78,7 +89,7 @@ export default function App() {
       inputRef.current?.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // Run once on mount
 
   // Update InputManager when settings change
   useEffect(() => {
@@ -125,19 +136,32 @@ export default function App() {
       canvasRef.current?.focus();
     }
   };
+  
+  const resumeGame = () => {
+      if (engineRef.current) {
+          engineRef.current.resumeGame();
+          setStatus(GameStatus.PLAYING);
+      }
+  };
 
   const renderHearts = () => {
     if (!gameStats) return null;
     const hearts = [];
-    const count = Math.ceil(gameStats.maxHp / 2);
-    for(let i=0; i<count; i++) {
-        const val = gameStats.hp - (i*2);
-        let color = 'bg-gray-800';
-        if (val >= 2) color = 'bg-red-600';
-        else if (val === 1) color = 'bg-red-900';
+    // Calculate total hearts (maxHp / 2)
+    const totalHearts = Math.ceil(gameStats.maxHp / 2);
+    
+    for(let i=0; i<totalHearts; i++) {
+        // Calculate health for this heart (0, 1, or 2)
+        const heartHealth = Math.max(0, Math.min(2, gameStats.hp - (i * 2)));
+        // For simplicity in this pixel style, let's just do Full or Empty/Half
+        // A truly detailed half-heart sprite would be better, but for now:
+        // If heartHealth >= 1 it is "full" (visually), otherwise empty-ish
+        // Actually, let's just use full heart for any health > 0 in that slot for now, 
+        // or distinguish empty vs full.
+        const isFull = heartHealth > 0;
         
         hearts.push(
-            <div key={i} className={`w-6 h-6 rounded-sm ${color} border-2 border-red-950 mr-1 shadow-md`}></div>
+            <PixelHeart key={i} full={isFull} />
         );
     }
     return <div className="flex">{hearts}</div>;
@@ -187,8 +211,8 @@ export default function App() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-900 text-white font-mono select-none">
       
-      {/* HUD */}
-      {status === GameStatus.PLAYING && gameStats && (
+      {/* HUD (Show in Playing and Paused) */}
+      {(status === GameStatus.PLAYING || status === GameStatus.PAUSED) && gameStats && (
         <div className="w-full max-w-3xl flex justify-between items-start mb-2 px-4 h-24">
           <div className="flex flex-col justify-end h-full">
             <div className="text-xs text-gray-400 mb-1">{t('HEALTH')}</div>
@@ -218,7 +242,7 @@ export default function App() {
       <div className="relative group flex">
         
         {/* SIDEBAR STATS */}
-        {status === GameStatus.PLAYING && gameStats?.stats && (
+        {(status === GameStatus.PLAYING || status === GameStatus.PAUSED) && gameStats?.stats && (
             <div className="absolute -left-16 top-1/2 transform -translate-y-1/2 flex flex-col gap-2 bg-black/60 p-2 rounded-l border-y border-l border-gray-700 backdrop-blur-sm z-10">
                 <div className="flex items-center gap-2" title="Fire Rate">
                     <span className="text-lg">⚡</span>
@@ -235,6 +259,10 @@ export default function App() {
                 <div className="flex items-center gap-2" title="Knockback">
                     <span className="text-lg">🥊</span>
                     <span className="text-xs font-bold text-red-300">{Math.round(gameStats.stats.knockback)}</span>
+                </div>
+                <div className="flex items-center gap-2" title="Bullet Size">
+                    <span className="text-lg">🔵</span>
+                    <span className="text-xs font-bold text-cyan-300">{gameStats.stats.bulletScale.toFixed(1)}</span>
                 </div>
             </div>
         )}
@@ -258,6 +286,33 @@ export default function App() {
         {status === GameStatus.PLAYING && engineRef.current && engineRef.current.restartTimer > 0 && (
            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
               <div className="text-white font-bold text-xl drop-shadow-md">{t('HOLD_R')}</div>
+           </div>
+        )}
+        
+        {/* PAUSE MENU OVERLAY */}
+        {status === GameStatus.PAUSED && !showSettings && (
+           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-8 z-50">
+               <h2 className="text-5xl font-black text-white mb-8 tracking-widest drop-shadow-lg">{t('PAUSE_TITLE')}</h2>
+               <div className="flex flex-col gap-4 w-64">
+                   <button 
+                       onClick={resumeGame}
+                       className="px-6 py-3 bg-white text-black font-bold text-xl hover:bg-amber-300 transition-colors"
+                   >
+                       {t('RESUME')}
+                   </button>
+                   <button 
+                       onClick={() => setShowSettings(true)}
+                       className="px-6 py-3 bg-gray-800 text-white border border-gray-600 font-bold text-xl hover:bg-gray-700 transition-colors"
+                   >
+                       {t('SETTINGS')}
+                   </button>
+                   <button 
+                       onClick={startGame}
+                       className="px-6 py-3 bg-red-900/80 text-white border border-red-700 font-bold text-xl hover:bg-red-800 transition-colors"
+                   >
+                       {t('RESTART')}
+                   </button>
+               </div>
            </div>
         )}
         

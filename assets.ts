@@ -34,6 +34,40 @@ export class AssetLoader {
     return canvas;
   }
 
+  createCircleSprite(radius: number, color: string, core: string): HTMLCanvasElement {
+      const size = radius * 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d')!;
+      
+      // Outer
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(radius, radius, radius, 0, Math.PI*2);
+      ctx.fill();
+      
+      // Core
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(radius, radius, radius * 0.5, 0, Math.PI*2);
+      ctx.fill();
+      
+      return canvas;
+  }
+  
+  createFlashTexture(source: HTMLCanvasElement): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.width = source.width;
+    canvas.height = source.height;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(source, 0, 0);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return canvas;
+  }
+
   generateAssets() {
     const P = CONSTANTS.PALETTE;
 
@@ -70,34 +104,22 @@ export class AssetLoader {
     this.assets['ITEM'] = this.createTexture(SPRITES.ITEM,
       ['', P.ITEM_GOLD, P.ITEM_SHADOW, '#ffffff'], CONSTANTS.ITEM_SIZE);
       
+    this.assets['PEDESTAL'] = this.createTexture(SPRITES.PEDESTAL,
+      ['', P.PEDESTAL_TOP, P.PEDESTAL_SIDE, '#000000'], CONSTANTS.ITEM_SIZE);
+
     this.assets['HEART'] = this.createTexture(SPRITES.HEART,
       ['', P.HEART_MAIN, P.HEART_SHADOW, '#ffffff'], 16);
       
     // Projectiles (Procedural circle sprites)
     this.assets['PROJ_PLAYER'] = this.createCircleSprite(8, P.PROJ_PLAYER_MAIN, P.PROJ_PLAYER_CORE);
     this.assets['PROJ_ENEMY'] = this.createCircleSprite(8, P.PROJ_ENEMY_MAIN, P.PROJ_ENEMY_CORE);
-  }
-
-  createCircleSprite(radius: number, color: string, core: string): HTMLCanvasElement {
-      const size = radius * 2;
-      const canvas = document.createElement('canvas');
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d')!;
-      
-      // Outer
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(radius, radius, radius, 0, Math.PI*2);
-      ctx.fill();
-      
-      // Core
-      ctx.fillStyle = core;
-      ctx.beginPath();
-      ctx.arc(radius, radius, radius * 0.5, 0, Math.PI*2);
-      ctx.fill();
-      
-      return canvas;
+    
+    // GENERATE FLASH VARIANTS FOR ALL ASSETS
+    // Using Object.keys snapshot to avoid infinite loop while adding keys
+    const currentKeys = Object.keys(this.assets);
+    for (const key of currentKeys) {
+        this.assets[key + '_FLASH'] = this.createFlashTexture(this.assets[key]);
+    }
   }
 
   get(name: string): HTMLCanvasElement | null {

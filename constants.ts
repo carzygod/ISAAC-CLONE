@@ -53,6 +53,8 @@ export const CONSTANTS = {
     ITEM_SHADOW: '#b45309',
     HEART_MAIN: '#ef4444',
     HEART_SHADOW: '#991b1b',
+    PEDESTAL_TOP: '#525252',
+    PEDESTAL_SIDE: '#262626',
     
     // Projectiles
     PROJ_PLAYER_MAIN: '#60a5fa',
@@ -81,6 +83,7 @@ export const CONSTANTS = {
       PROJECTILE_ENEMY: '#f97316',
       ITEM: '#a855f7',
       HEART: '#dc2626',
+      PEDESTAL: '#525252',
   }
 };
 
@@ -93,7 +96,8 @@ export const DEFAULT_KEYMAP: KeyMap = {
   shootDown: 'ArrowDown',
   shootLeft: 'ArrowLeft',
   shootRight: 'ArrowRight',
-  restart: 'KeyR'
+  restart: 'KeyR',
+  pause: 'Escape'
 };
 
 export const TRANSLATIONS: Record<Language, Record<string, string>> = {
@@ -112,6 +116,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     RESTART_HINT: "长按 'R' 快速重开",
     HOLD_R: "长按 'R' 重置",
     
+    // Pause Menu
+    PAUSE_TITLE: "游戏暂停",
+    RESUME: "继续游戏",
+    RESTART: "重新开始",
+    
     // Settings
     SETTING_TITLE: "设置",
     SETTING_LANG: "语言",
@@ -126,6 +135,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     KEY_SHOOT_LEFT: "左射",
     KEY_SHOOT_RIGHT: "右射",
     KEY_RESTART: "重开",
+    KEY_PAUSE: "暂停",
     WAITING_FOR_KEY: "请按键...",
     CLOSE: "关闭",
 
@@ -170,6 +180,10 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     RESTART_HINT: "長按 'R' 快速重開",
     HOLD_R: "長按 'R' 重置",
     
+    PAUSE_TITLE: "遊戲暫停",
+    RESUME: "繼續遊戲",
+    RESTART: "重新開始",
+    
     SETTING_TITLE: "設置",
     SETTING_LANG: "語言",
     SETTING_MINIMAP: "顯示小地圖",
@@ -183,6 +197,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     KEY_SHOOT_LEFT: "左射",
     KEY_SHOOT_RIGHT: "右射",
     KEY_RESTART: "重開",
+    KEY_PAUSE: "暫停",
     WAITING_FOR_KEY: "請按鍵...",
     CLOSE: "關閉",
 
@@ -226,6 +241,10 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     RESTART_HINT: "Hold 'R' to Quick Restart",
     HOLD_R: "HOLD 'R' TO RESTART",
 
+    PAUSE_TITLE: "PAUSED",
+    RESUME: "RESUME",
+    RESTART: "RESTART",
+
     SETTING_TITLE: "SETTINGS",
     SETTING_LANG: "Language",
     SETTING_MINIMAP: "Show Minimap",
@@ -239,6 +258,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     KEY_SHOOT_LEFT: "Shoot Left",
     KEY_SHOOT_RIGHT: "Shoot Right",
     KEY_RESTART: "Restart",
+    KEY_PAUSE: "Pause",
     WAITING_FOR_KEY: "Press any key...",
     CLOSE: "Close",
 
@@ -282,6 +302,10 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     RESTART_HINT: "Удерж. 'R' для рестарта",
     HOLD_R: "УДЕРЖ. 'R' ДЛЯ РЕСТАРТА",
 
+    PAUSE_TITLE: "ПАУЗА",
+    RESUME: "ПРОДОЛЖИТЬ",
+    RESTART: "ЗАНОВО",
+
     SETTING_TITLE: "НАСТРОЙКИ",
     SETTING_LANG: "Язык",
     SETTING_MINIMAP: "Миникарта",
@@ -295,6 +319,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     KEY_SHOOT_LEFT: "Стрелять Влево",
     KEY_SHOOT_RIGHT: "Стрелять Вправо",
     KEY_RESTART: "Рестарт",
+    KEY_PAUSE: "Пауза",
     WAITING_FOR_KEY: "Нажмите клавишу...",
     CLOSE: "Закрыть",
 

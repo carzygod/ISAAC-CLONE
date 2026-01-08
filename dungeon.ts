@@ -201,7 +201,8 @@ export const generateDungeon = (floorLevel: number, seed: number, targetRoomCoun
       cleared: cr.type === 'START', // Start is safe
       itemCollected: false,
       layout,
-      visited: false
+      visited: false,
+      seed: rng.next() * 1000000 // Unique seed for this room
     });
   });
 

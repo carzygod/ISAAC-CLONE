@@ -29,6 +29,9 @@ export class GameEngine {
   // Restart Logic
   restartTimer: number = 0;
   
+  // Pause Logic
+  pauseLocked: boolean = false;
+
   // Callback to sync React UI
   onUiUpdate: (stats: any) => void;
 
@@ -52,6 +55,12 @@ export class GameEngine {
     this.loadFloor(1);
     this.status = GameStatus.PLAYING;
     this.restartTimer = 0;
+  }
+
+  resumeGame() {
+      if (this.status === GameStatus.PAUSED) {
+          this.status = GameStatus.PLAYING;
+      }
   }
 
   createPlayer(): PlayerEntity {
@@ -171,22 +180,42 @@ export class GameEngine {
       this.spawnEnemiesForRoom(room);
     }
 
-    // Spawn Item if Item Room and NOT collected yet
+    // Spawn Item if Item Room
     if (room.type === 'ITEM') {
         if (!room.itemCollected) {
-            this.spawnItem(cx, cy);
+            this.spawnItem(cx, cy, room.seed);
             // DO NOT force clear here. Room stays locked until item collected.
+        } else {
+            // Spawn empty pedestal if already collected
+            this.spawnPedestal(cx, cy);
         }
     }
     
     // Boss Spawn
-    if (room.type === 'BOSS' && !room.cleared) {
-        this.spawnBoss(cx, cy);
-    }
-
-    // If boss room is already cleared, spawn trapdoor
-    if (room.type === 'BOSS' && room.cleared) {
-        this.spawnTrapdoor(cx, cy);
+    if (room.type === 'BOSS') {
+        if (!room.cleared) {
+            this.spawnBoss(cx, cy);
+        } else {
+            // Already cleared boss room logic
+            this.spawnTrapdoor(cx, cy);
+            
+            // Check if items were collected (re-use itemCollected flag for Boss rewards state)
+            if (room.itemCollected) {
+                 // Already picked a reward, show empty pedestals
+                 const off = 80;
+                 this.spawnPedestal(cx - off, cy);
+                 this.spawnPedestal(cx + off, cy);
+            } else {
+                // Cleared but rewards not picked (e.g. re-entered room)
+                // Spawn the choice items again deterministically
+                const off = 80;
+                const choiceId = `boss_reward_${this.floorLevel}`;
+                const rng = new SeededRNG(room.seed + 999); // Use offset seed for rewards
+                
+                this.spawnItem(cx - off, cy, rng.next() * 10000, choiceId);
+                this.spawnItem(cx + off, cy, rng.next() * 10000, choiceId);
+            }
+        }
     }
   }
 
@@ -264,10 +293,30 @@ export class GameEngine {
       this.entities.push(boss);
   }
 
-  spawnItem(x: number, y: number) {
+  spawnPedestal(x: number, y: number) {
+      this.entities.push({
+          id: uuid(),
+          type: EntityType.PEDESTAL,
+          x: x - CONSTANTS.ITEM_SIZE/2,
+          y: y - CONSTANTS.ITEM_SIZE/2 + 8, // Offset slightly down so item sits on top
+          w: CONSTANTS.ITEM_SIZE,
+          h: CONSTANTS.ITEM_SIZE,
+          velocity: {x:0, y:0},
+          knockbackVelocity: {x:0, y:0},
+          color: CONSTANTS.COLORS.PEDESTAL,
+          markedForDeletion: false
+      });
+  }
+
+  spawnItem(x: number, y: number, seed?: number, choiceGroupId?: string) {
+      // Always spawn pedestal first (draw order: pedestal behind item)
+      this.spawnPedestal(x, y);
+
       // Exclude PICKUPs from item room generation
       const types = Object.values(ItemType).filter(t => t !== ItemType.HEART_PICKUP);
-      const type = types[Math.floor(Math.random() * types.length)];
+      
+      const rng = seed !== undefined ? new SeededRNG(seed) : new SeededRNG(Math.random() * 100000);
+      const type = types[Math.floor(rng.next() * types.length)];
       
       let nameKey = "";
       let descKey = "";
@@ -299,7 +348,8 @@ export class GameEngine {
           markedForDeletion: false,
           itemType: type,
           name: nameKey,
-          description: descKey
+          description: descKey,
+          choiceGroupId: choiceGroupId
       };
       this.entities.push(item);
   }
@@ -337,9 +387,23 @@ export class GameEngine {
       this.entities.push(td);
   }
 
-  update(input: { move: {x:number, y:number}, shoot: {x:number, y:number} | null, restart?: boolean }) {
+  update(input: { move: {x:number, y:number}, shoot: {x:number, y:number} | null, restart?: boolean, pause?: boolean }) {
     
-    // Quick Restart Logic (Allow in Playing and Game Over)
+    // Toggle Pause Logic
+    if (input.pause) {
+        if (!this.pauseLocked) {
+            if (this.status === GameStatus.PLAYING) {
+                this.status = GameStatus.PAUSED;
+            } else if (this.status === GameStatus.PAUSED) {
+                this.status = GameStatus.PLAYING;
+            }
+            this.pauseLocked = true;
+        }
+    } else {
+        this.pauseLocked = false;
+    }
+
+    // Quick Restart Logic (Allow in Playing, Game Over, and Paused)
     if (input.restart) {
         this.restartTimer++;
         if (this.restartTimer > 60) { // 1 second hold
@@ -349,6 +413,22 @@ export class GameEngine {
         }
     } else {
         this.restartTimer = 0;
+    }
+
+    // If PAUSED, we stop game logic updates but still need to sync UI for the Menu to appear
+    if (this.status === GameStatus.PAUSED) {
+        this.onUiUpdate({
+            hp: this.player.stats.hp,
+            maxHp: this.player.stats.maxHp,
+            floor: this.floorLevel,
+            score: this.score,
+            items: this.player.inventory.length,
+            notification: this.notification,
+            dungeon: this.dungeon.map(r => ({x: r.x, y: r.y, type: r.type, visited: r.visited})),
+            currentRoomPos: this.currentRoom ? {x: this.currentRoom.x, y: this.currentRoom.y} : {x:0, y:0},
+            stats: this.player.stats
+        });
+        return;
     }
 
     if (this.status !== GameStatus.PLAYING) return;
@@ -406,11 +486,25 @@ export class GameEngine {
              this.spawnPickup(cx, cy);
         }
         
-        // If it was a boss room, spawn trapdoor
+        // If it was a boss room: Spawn Trapdoor AND Rewards
         if (this.currentRoom.type === 'BOSS') {
             const cx = CONSTANTS.CANVAS_WIDTH / 2;
             const cy = CONSTANTS.CANVAS_HEIGHT / 2;
+            
+            // Spawn Trapdoor
             this.spawnTrapdoor(cx, cy);
+
+            // Spawn Rewards (Two exclusive items)
+            // Use currentRoom.seed for deterministic generation so we can recreate it if needed
+            // But here we just spawn them fresh
+            const off = 80;
+            const choiceId = `boss_reward_${this.floorLevel}`;
+            
+            // Use a specific offset from room seed to ensure these items are distinct from each other but consistent to the seed
+            const rng = new SeededRNG(this.currentRoom.seed + 999);
+            
+            this.spawnItem(cx - off, cy, rng.next() * 10000, choiceId);
+            this.spawnItem(cx + off, cy, rng.next() * 10000, choiceId);
         }
     }
 
@@ -428,7 +522,7 @@ export class GameEngine {
         // Apply Physics (Knockback decay + Velocity addition)
         if (e.type === EntityType.ENEMY) {
             this.applyPhysics(e);
-        } else if (e.type !== EntityType.PROJECTILE) {
+        } else if (e.type !== EntityType.PROJECTILE && e.type !== EntityType.PEDESTAL) {
             // Static items/traps/projectiles handled separately
             // Actually projectiles have their own movement logic
             e.x += e.velocity.x;
@@ -475,20 +569,15 @@ export class GameEngine {
   }
   
   applyPhysics(ent: Entity) {
-      // 1. Decay Knockback
-      ent.knockbackVelocity.x *= 0.85;
-      ent.knockbackVelocity.y *= 0.85;
+      // 1. Decay Knockback (Smoother decay)
+      ent.knockbackVelocity.x *= 0.9;
+      ent.knockbackVelocity.y *= 0.9;
       
       // Threshold to stop micro-movements
       if (Math.abs(ent.knockbackVelocity.x) < 0.1) ent.knockbackVelocity.x = 0;
       if (Math.abs(ent.knockbackVelocity.y) < 0.1) ent.knockbackVelocity.y = 0;
 
-      // 2. Add Knockback to current Velocity (temporarily for this frame)
-      // Note: We modify the position directly with velocity + knockback
-      // But resolveWallCollision expects 'velocity' to be the delta.
-      // So we add knockback to velocity before collision, then restore it?
-      // Better: Just add it. For enemies, velocity is recalculated every frame by AI anyway.
-      // For player, velocity is set by Input every frame.
+      // 2. Add Knockback to current Velocity
       ent.velocity.x += ent.knockbackVelocity.x;
       ent.velocity.y += ent.knockbackVelocity.y;
   }
@@ -755,6 +844,19 @@ export class GameEngine {
           return;
       }
 
+      // Handle Choice Groups (Remove sibling items)
+      if (item.choiceGroupId) {
+          this.entities.forEach(e => {
+              if (e.type === EntityType.ITEM && 
+                  (e as ItemEntity).choiceGroupId === item.choiceGroupId && 
+                  e.id !== item.id) {
+                  e.markedForDeletion = true; // Remove other choice
+                  
+                  // Optional: spawn a poof effect here
+              }
+          });
+      }
+
       this.player.inventory.push(item.itemType);
       
       // Mark as collected in the room data for persistence
@@ -989,47 +1091,59 @@ export class GameEngine {
 
 
       // --- Draw Entities ---
+      // Draw PEDESTALS first (bottom layer)
+      this.entities.filter(e => e.type === EntityType.PEDESTAL).forEach(e => {
+          const img = this.assets.get('PEDESTAL');
+          if (img) this.ctx.drawImage(img, e.x, e.y, e.w, e.h);
+      });
+
       [...this.entities, this.player].forEach(e => {
-          let img = null;
+          // Skip PEDESTAL as handled above
+          if (e.type === EntityType.PEDESTAL) return;
+
+          let spriteKey = '';
           
           // Match Entity Type to Asset
-          if (e.type === EntityType.PLAYER) img = this.assets.get('PLAYER');
+          if (e.type === EntityType.PLAYER) spriteKey = 'PLAYER';
           else if (e.type === EntityType.ITEM) {
-               img = (e as ItemEntity).itemType === ItemType.HEART_PICKUP 
-                   ? this.assets.get('HEART') 
-                   : this.assets.get('ITEM');
+               spriteKey = (e as ItemEntity).itemType === ItemType.HEART_PICKUP ? 'HEART' : 'ITEM';
           }
           else if (e.type === EntityType.PROJECTILE) {
               const p = e as ProjectileEntity;
-              img = p.ownerId === 'player' ? this.assets.get('PROJ_PLAYER') : this.assets.get('PROJ_ENEMY');
+              spriteKey = p.ownerId === 'player' ? 'PROJ_PLAYER' : 'PROJ_ENEMY';
           }
           else if (e.type === EntityType.ENEMY) {
               const en = e as EnemyEntity;
               switch(en.enemyType) {
-                  case EnemyType.CHASER: img = this.assets.get('ENEMY_CHASER'); break;
-                  case EnemyType.SHOOTER: img = this.assets.get('ENEMY_SHOOTER'); break;
-                  case EnemyType.TANK: img = this.assets.get('ENEMY_TANK'); break;
-                  case EnemyType.BOSS: img = this.assets.get('ENEMY_BOSS'); break;
-                  default: img = this.assets.get('ENEMY_CHASER');
+                  case EnemyType.CHASER: spriteKey = 'ENEMY_CHASER'; break;
+                  case EnemyType.SHOOTER: spriteKey = 'ENEMY_SHOOTER'; break;
+                  case EnemyType.TANK: spriteKey = 'ENEMY_TANK'; break;
+                  case EnemyType.BOSS: spriteKey = 'ENEMY_BOSS'; break;
+                  default: spriteKey = 'ENEMY_CHASER';
               }
           }
 
-          if (img) {
-              // Draw Sprite
-              this.ctx.drawImage(img, e.x, e.y, e.w, e.h);
-              
-              // Flash effect logic
-              // Combine invincible timer (player) and flash timer (everyone)
+          if (spriteKey) {
               const isInvincible = e.type === EntityType.PLAYER && (e as PlayerEntity).invincibleTimer > 0;
               const isFlashing = e.flashTimer && e.flashTimer > 0;
 
+              // Check if we should draw the Flash variant
+              let useFlash = false;
               if (isInvincible || isFlashing) {
                   if (isFlashing || (isInvincible && Math.floor((e as PlayerEntity).invincibleTimer / 4) % 2 === 0)) {
-                       this.ctx.globalCompositeOperation = 'source-atop';
-                       // White flash for hit feedback
-                       this.ctx.fillStyle = 'rgba(255,255,255,0.7)';
-                       this.ctx.fillRect(e.x, e.y, e.w, e.h);
-                       this.ctx.globalCompositeOperation = 'source-over';
+                      useFlash = true;
+                  }
+              }
+
+              const img = this.assets.get(useFlash ? spriteKey + '_FLASH' : spriteKey) || this.assets.get(spriteKey);
+
+              if (img) {
+                  if (useFlash) {
+                       this.ctx.globalAlpha = 0.8; // Slightly transparent white flash
+                       this.ctx.drawImage(img, e.x, e.y, e.w, e.h);
+                       this.ctx.globalAlpha = 1.0;
+                  } else {
+                       this.ctx.drawImage(img, e.x, e.y, e.w, e.h);
                   }
               }
 

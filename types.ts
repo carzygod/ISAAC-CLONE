@@ -12,7 +12,8 @@ export enum EntityType {
   ITEM = 'ITEM',
   OBSTACLE = 'OBSTACLE',
   DOOR = 'DOOR',
-  TRAPDOOR = 'TRAPDOOR'
+  TRAPDOOR = 'TRAPDOOR',
+  PEDESTAL = 'PEDESTAL'
 }
 
 export enum EnemyType {
@@ -34,6 +35,7 @@ export enum Direction {
 export enum GameStatus {
   MENU = 'MENU',
   PLAYING = 'PLAYING',
+  PAUSED = 'PAUSED',
   GAME_OVER = 'GAME_OVER',
   VICTORY = 'VICTORY'
 }
@@ -70,6 +72,7 @@ export interface KeyMap {
   shootLeft: string;
   shootRight: string;
   restart: string;
+  pause: string;
 }
 
 export interface Settings {
@@ -135,6 +138,7 @@ export interface ItemEntity extends Entity {
   itemType: ItemType;
   name: string; // Now stores Translation Key
   description: string; // Now stores Translation Key
+  choiceGroupId?: string; // If set, picking this item removes others with same ID
 }
 
 export interface Room {
@@ -146,6 +150,7 @@ export interface Room {
   itemCollected?: boolean; // New flag for persistence
   layout: number[][]; // 0: Floor, 1: Wall, 2: Rock
   visited: boolean;
+  seed: number; // Deterministic seed for room events
 }
 
 export interface GameState {

@@ -394,6 +394,8 @@ export class GameEngine {
   getUiState() {
       // Logic for Item Inspection (Nearby items)
       let nearbyItem = null;
+      let bossData = null;
+
       // Only detect if current room is valid
       if (this.currentRoom) {
           let closestDist = 80; // Inspection Radius
@@ -401,6 +403,7 @@ export class GameEngine {
           const cy = this.player.y + this.player.h/2;
           
           for (const e of this.entities) {
+             // Check Item
              if (e.type === EntityType.ITEM && !e.markedForDeletion) {
                  const ecx = e.x + e.w/2;
                  const ecy = e.y + e.h/2;
@@ -414,6 +417,18 @@ export class GameEngine {
                          x: e.x, y: e.y, w: e.w, h: e.h
                      };
                  }
+             }
+             
+             // Check Boss
+             if (e.type === EntityType.ENEMY && (e as EnemyEntity).enemyType === EnemyType.BOSS) {
+                 const b = e as EnemyEntity;
+                 // Get config name or default
+                 const conf = BOSSES.find(x => x.type === EnemyType.BOSS);
+                 bossData = {
+                     name: conf ? conf.name : 'BOSS',
+                     hp: b.hp,
+                     maxHp: b.maxHp
+                 };
              }
           }
       }
@@ -429,7 +444,8 @@ export class GameEngine {
           dungeon: this.dungeon.map(r => ({x: r.x, y: r.y, type: r.type, visited: r.visited})),
           currentRoomPos: this.currentRoom ? {x: this.currentRoom.x, y: this.currentRoom.y} : {x:0, y:0},
           stats: this.player.stats,
-          nearbyItem
+          nearbyItem,
+          boss: bossData
       };
   }
 
@@ -1187,11 +1203,7 @@ export class GameEngine {
                   }
               }
 
-              // Draw Boss HP Bar
-              if (e.type === EntityType.ENEMY && (e as EnemyEntity).enemyType === EnemyType.BOSS) {
-                 this.ctx.fillStyle = 'red';
-                 this.ctx.fillRect(e.x, e.y - 10, e.w * ((e as EnemyEntity).hp / (e as EnemyEntity).maxHp), 5);
-              }
+              // --- REMOVED BOSS HP BAR DRAWING FROM HERE ---
           } else if (e.type === EntityType.TRAPDOOR) {
               this.ctx.fillStyle = CONSTANTS.PALETTE.DOOR_LOCKED;
               this.ctx.fillRect(e.x, e.y, e.w, e.h);

@@ -32,6 +32,7 @@ export default function App() {
     currentRoomPos: {x:number, y:number};
     stats?: Stats; // New Full Stats
     nearbyItem?: { name: string, desc: string, x: number, y: number, w: number, h: number } | null;
+    boss?: { name: string, hp: number, maxHp: number } | null;
   } | null>(null);
   
   const [status, setStatus] = useState<GameStatus>(GameStatus.MENU);
@@ -302,6 +303,21 @@ export default function App() {
                   {t(gameStats.notification)}
               </div>
            </div>
+        )}
+        
+        {/* BOSS HEALTH BAR OVERLAY */}
+        {gameStats?.boss && (
+            <div className="absolute bottom-10 left-0 right-0 flex flex-col items-center justify-center pointer-events-none z-30">
+                <div className="text-red-500 font-bold text-lg mb-1 drop-shadow-md tracking-wider">
+                    {gameStats.boss.name}
+                </div>
+                <div className="w-2/3 h-6 bg-gray-900 border-2 border-red-900 rounded relative overflow-hidden">
+                    <div 
+                        className="h-full bg-red-600 transition-all duration-200 ease-out"
+                        style={{ width: `${(Math.max(0, gameStats.boss.hp) / gameStats.boss.maxHp) * 100}%` }}
+                    />
+                </div>
+            </div>
         )}
 
         {/* Item Inspection Tooltip */}

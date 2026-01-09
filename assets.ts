@@ -100,10 +100,33 @@ export class AssetLoader {
     this.assets['ENEMY_BOSS'] = this.createTexture(SPRITES.BOSS,
       ['', P.BOSS_MAIN, P.BOSS_HIGHLIGHT, '#000000'], 80); // Boss Size
 
-    // Items
-    this.assets['ITEM'] = this.createTexture(SPRITES.ITEM,
+    // Items (Generic)
+    this.assets['ITEM'] = this.createTexture(SPRITES.ITEM_BOX,
       ['', P.ITEM_GOLD, P.ITEM_SHADOW, '#ffffff'], CONSTANTS.ITEM_SIZE);
+
+    // New Items
+    this.assets['ITEM_MEAT'] = this.createTexture(SPRITES.ITEM_MEAT,
+      ['', '#fca5a5', '#dc2626', '#fef2f2'], CONSTANTS.ITEM_SIZE);
       
+    this.assets['ITEM_SWORD'] = this.createTexture(SPRITES.ITEM_SWORD,
+      ['', '#94a3b8', '#475569', '#e2e8f0'], CONSTANTS.ITEM_SIZE);
+
+    this.assets['ITEM_SYRINGE'] = this.createTexture(SPRITES.ITEM_SYRINGE,
+      ['', '#e0e7ff', '#ef4444', '#a5f3fc'], CONSTANTS.ITEM_SIZE);
+
+    this.assets['ITEM_MUG'] = this.createTexture(SPRITES.ITEM_MUG,
+      ['', '#78350f', '#92400e', '#451a03'], CONSTANTS.ITEM_SIZE);
+    
+    this.assets['ITEM_SPRING'] = this.createTexture(SPRITES.ITEM_SPRING,
+      ['', '#9ca3af', '#4b5563', '#d1d5db'], CONSTANTS.ITEM_SIZE);
+
+    this.assets['ITEM_LENS'] = this.createTexture(SPRITES.ITEM_LENS,
+      ['', '#60a5fa', '#1e3a8a', '#93c5fd'], CONSTANTS.ITEM_SIZE);
+
+    this.assets['ITEM_EYE'] = this.createTexture(SPRITES.ITEM_EYE,
+      ['', '#fef3c7', '#d97706', '#000000'], CONSTANTS.ITEM_SIZE);
+
+    // Pedestal  
     this.assets['PEDESTAL'] = this.createTexture(SPRITES.PEDESTAL,
       ['', P.PEDESTAL_TOP, P.PEDESTAL_SIDE, '#000000'], CONSTANTS.ITEM_SIZE);
 

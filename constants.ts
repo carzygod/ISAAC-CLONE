@@ -1,3 +1,4 @@
+
 import { KeyMap, Language } from "./types";
 
 export const CONSTANTS = {
@@ -160,6 +161,8 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     ITEM_QUAD_SHOT_DESC: "四发散射",
     ITEM_KNOCKBACK_UP_NAME: "重拳手套",
     ITEM_KNOCKBACK_UP_DESC: "击退效果 +20%",
+    ITEM_GLASS_CANNON_NAME: "玻璃大炮",
+    ITEM_GLASS_CANNON_DESC: "伤害+100%，生命上限-2",
     
     PICKUP_HEART_NAME: "心脏",
     PICKUP_HEART_DESC: "恢复 1 格生命",
@@ -221,6 +224,8 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     ITEM_QUAD_SHOT_DESC: "四發散射",
     ITEM_KNOCKBACK_UP_NAME: "重拳手套",
     ITEM_KNOCKBACK_UP_DESC: "擊退效果 +20%",
+    ITEM_GLASS_CANNON_NAME: "玻璃大炮",
+    ITEM_GLASS_CANNON_DESC: "傷害+100%，生命上限-2",
     
     PICKUP_HEART_NAME: "心臟",
     PICKUP_HEART_DESC: "恢復 1 格生命",
@@ -282,6 +287,8 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     ITEM_QUAD_SHOT_DESC: "Quad Shot",
     ITEM_KNOCKBACK_UP_NAME: "Heavy Glove",
     ITEM_KNOCKBACK_UP_DESC: "Knockback +20%",
+    ITEM_GLASS_CANNON_NAME: "Glass Cannon",
+    ITEM_GLASS_CANNON_DESC: "Damage +100%, Max HP -2",
     
     PICKUP_HEART_NAME: "Heart",
     PICKUP_HEART_DESC: "Recover 1 HP",
@@ -343,6 +350,8 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     ITEM_QUAD_SHOT_DESC: "Четверной Выстрел",
     ITEM_KNOCKBACK_UP_NAME: "Тяжелая Перчатка",
     ITEM_KNOCKBACK_UP_DESC: "Отбрасывание +20%",
+    ITEM_GLASS_CANNON_NAME: "Стеклянная Пушка",
+    ITEM_GLASS_CANNON_DESC: "Урон +100%, Макс ОЗ -2",
 
     PICKUP_HEART_NAME: "Сердце",
     PICKUP_HEART_DESC: "Восст. 1 ОЗ",

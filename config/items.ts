@@ -33,7 +33,7 @@ export const ITEMS: ItemConfig[] = [
     nameKey: 'ITEM_HP_UP_NAME',
     descKey: 'ITEM_HP_UP_DESC',
     color: CONSTANTS.COLORS.ITEM,
-    sprite: 'ITEM',
+    sprite: 'ITEM_MEAT',
     weight: 10,
     stats: { maxHp: 2, hp: 2 }
   },
@@ -43,9 +43,19 @@ export const ITEMS: ItemConfig[] = [
     nameKey: 'ITEM_DAMAGE_UP_NAME',
     descKey: 'ITEM_DAMAGE_UP_DESC',
     color: CONSTANTS.COLORS.ITEM,
-    sprite: 'ITEM',
+    sprite: 'ITEM_SWORD',
     weight: 10,
     stats: { damage: 1.1 }
+  },
+  {
+    id: 'glass_cannon',
+    type: ItemType.GLASS_CANNON,
+    nameKey: 'ITEM_GLASS_CANNON_NAME',
+    descKey: 'ITEM_GLASS_CANNON_DESC',
+    color: '#ff0000',
+    sprite: 'ITEM_SWORD', // Re-using sword or generic item for now, or make a new one? Let's use Sword but it'll be tinted by engine logic if we want, but sprite is fixed. 
+    weight: 5,
+    stats: { damage: 2.0, maxHp: -2 } // Big damage, lose HP
   },
   {
     id: 'speed_up',
@@ -53,7 +63,7 @@ export const ITEMS: ItemConfig[] = [
     nameKey: 'ITEM_SPEED_UP_NAME',
     descKey: 'ITEM_SPEED_UP_DESC',
     color: CONSTANTS.COLORS.ITEM,
-    sprite: 'ITEM',
+    sprite: 'ITEM_SYRINGE',
     weight: 10,
     stats: { speed: 0.5 }
   },
@@ -63,7 +73,7 @@ export const ITEMS: ItemConfig[] = [
     nameKey: 'ITEM_FIRE_RATE_UP_NAME',
     descKey: 'ITEM_FIRE_RATE_UP_DESC',
     color: CONSTANTS.COLORS.ITEM,
-    sprite: 'ITEM',
+    sprite: 'ITEM_MUG',
     weight: 10,
     stats: { fireRate: 0.8 }
   },
@@ -73,7 +83,7 @@ export const ITEMS: ItemConfig[] = [
     nameKey: 'ITEM_SHOT_SPEED_UP_NAME',
     descKey: 'ITEM_SHOT_SPEED_UP_DESC',
     color: CONSTANTS.COLORS.ITEM,
-    sprite: 'ITEM',
+    sprite: 'ITEM_SPRING',
     weight: 10,
     stats: { shotSpeed: 1.5 }
   },
@@ -83,7 +93,7 @@ export const ITEMS: ItemConfig[] = [
     nameKey: 'ITEM_RANGE_UP_NAME',
     descKey: 'ITEM_RANGE_UP_DESC',
     color: CONSTANTS.COLORS.ITEM,
-    sprite: 'ITEM',
+    sprite: 'ITEM_LENS',
     weight: 10,
     stats: { range: 1.2 }
   },
@@ -93,7 +103,7 @@ export const ITEMS: ItemConfig[] = [
     nameKey: 'ITEM_BULLET_SIZE_UP_NAME',
     descKey: 'ITEM_BULLET_SIZE_UP_DESC',
     color: CONSTANTS.COLORS.ITEM,
-    sprite: 'ITEM',
+    sprite: 'ITEM', // Generic Box
     weight: 8,
     stats: { bulletScale: 0.5 }
   },
@@ -103,7 +113,7 @@ export const ITEMS: ItemConfig[] = [
     nameKey: 'ITEM_TRIPLE_SHOT_NAME',
     descKey: 'ITEM_TRIPLE_SHOT_DESC',
     color: CONSTANTS.COLORS.ITEM,
-    sprite: 'ITEM',
+    sprite: 'ITEM_EYE',
     weight: 5,
     stats: { shotSpread: 3 }
   },
@@ -113,7 +123,7 @@ export const ITEMS: ItemConfig[] = [
     nameKey: 'ITEM_QUAD_SHOT_NAME',
     descKey: 'ITEM_QUAD_SHOT_DESC',
     color: CONSTANTS.COLORS.ITEM,
-    sprite: 'ITEM',
+    sprite: 'ITEM_EYE',
     weight: 3,
     stats: { shotSpread: 4 }
   },
@@ -123,7 +133,7 @@ export const ITEMS: ItemConfig[] = [
     nameKey: 'ITEM_KNOCKBACK_UP_NAME',
     descKey: 'ITEM_KNOCKBACK_UP_DESC',
     color: CONSTANTS.COLORS.ITEM,
-    sprite: 'ITEM',
+    sprite: 'ITEM', // Generic Box
     weight: 10,
     stats: { knockback: 1.2 }
   }

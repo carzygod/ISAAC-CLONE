@@ -558,6 +558,7 @@ export default function App() {
   // Mobile Pause Toggle
   const toggleMobilePause = () => {
       if (status === GameStatus.PLAYING) {
+          if (engineRef.current) engineRef.current.status = GameStatus.PAUSED; // Explicitly update engine status
           setStatus(GameStatus.PAUSED);
       } else if (status === GameStatus.PAUSED) {
           resumeGame();

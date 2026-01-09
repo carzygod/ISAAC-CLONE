@@ -79,11 +79,15 @@ export default function App() {
   const [waitingForKey, setWaitingForKey] = useState<keyof KeyMap | null>(null);
   const [menuSelection, setMenuSelection] = useState(0); 
   const [selectedCharIndex, setSelectedCharIndex] = useState(0);
+  
+  // Settings Navigation State
+  const [settingsSelection, setSettingsSelection] = useState(0);
 
   // Settings State
   const [settings, setSettings] = useState<Settings>({
     language: Language.ZH_CN,
     showMinimap: true,
+    isFullScreen: false,
     keyMap: { ...DEFAULT_KEYMAP }
   });
 
@@ -98,6 +102,47 @@ export default function App() {
     }
     return TRANSLATIONS[settings.language][key] || key;
   };
+
+  // Full Screen Logic
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+            console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+        });
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    }
+  };
+
+  // Sync state with actual browser state
+  useEffect(() => {
+    const handleFsChange = () => {
+        setSettings(s => ({...s, isFullScreen: !!document.fullscreenElement}));
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  // Reset settings selection when opening
+  useEffect(() => {
+    if(showSettings) setSettingsSelection(0);
+  }, [showSettings]);
+
+  // Global Key Listener for Full Screen
+  useEffect(() => {
+    const handleGlobalKeys = (e: KeyboardEvent) => {
+        if (waitingForKey) return; // Don't trigger if rebinding keys
+        
+        // Check for Fullscreen Key
+        if (e.code === settings.keyMap.toggleFullscreen) {
+            toggleFullScreen();
+        }
+    };
+    window.addEventListener('keydown', handleGlobalKeys);
+    return () => window.removeEventListener('keydown', handleGlobalKeys);
+  }, [settings.keyMap.toggleFullscreen, waitingForKey]);
 
   // Initialize Game
   useEffect(() => {
@@ -176,10 +221,112 @@ export default function App() {
 
   // Menu Navigation Listener
   useEffect(() => {
-      if (showSettings) return;
-      if (status !== GameStatus.MENU && status !== GameStatus.CHARACTER_SELECT && status !== GameStatus.PAUSED) return;
+      if (waitingForKey) return;
 
       const handleMenuNav = (e: KeyboardEvent) => {
+          if (showSettings) {
+             // SETTINGS NAVIGATION
+             // Indices:
+             // 0: Language
+             // 1: Minimap
+             // 2: Fullscreen
+             // 3-13: Key bindings (Grid)
+             // 14: Close
+             
+             const keyList = Object.keys(settings.keyMap) as (keyof KeyMap)[];
+             const keyCount = keyList.length; // 11
+             const closeIndex = 3 + keyCount; // 14
+             
+             const scrollToItem = (idx: number) => {
+                 const el = document.getElementById(`setting-item-${idx}`);
+                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+             };
+
+             if (e.key === 'ArrowUp') {
+                 setSettingsSelection(prev => {
+                     let next = prev;
+                     if (prev <= 0) next = 0;
+                     else if (prev <= 2) next = prev - 1;
+                     else if (prev === 3 || prev === 4) next = 2; // From first row of keys to fullscreen
+                     else if (prev <= closeIndex - 1) next = prev - 2; // Grid logic up
+                     else next = 13; // From Close to last key (Toggle Fullscreen)
+                     
+                     scrollToItem(next);
+                     return next;
+                 });
+             } else if (e.key === 'ArrowDown') {
+                 setSettingsSelection(prev => {
+                     let next = prev;
+                     if (prev < 2) next = prev + 1;
+                     else if (prev === 2) next = 3;
+                     else if (prev + 2 < closeIndex) next = prev + 2; // Grid logic down
+                     else next = closeIndex; // To Close
+                     
+                     scrollToItem(next);
+                     return next;
+                 });
+             } else if (e.key === 'ArrowLeft') {
+                 if (settingsSelection === 0) {
+                     // Cycle Language
+                     const langs = Object.values(Language);
+                     const currentIdx = langs.indexOf(settings.language);
+                     const nextIdx = (currentIdx - 1 + langs.length) % langs.length;
+                     setSettings(s => ({...s, language: langs[nextIdx]}));
+                 } else if (settingsSelection === 1) {
+                     setSettings(s => ({...s, showMinimap: !s.showMinimap}));
+                 } else if (settingsSelection === 2) {
+                     toggleFullScreen();
+                 } else if (settingsSelection >= 3 && settingsSelection < closeIndex) {
+                      // Grid move Left (only if even index relative to grid start?)
+                      // Keys are 3,4 ; 5,6. 
+                      // If Right Col (4,6,8...) -> Go Left (3,5,7...)
+                      const gridIdx = settingsSelection - 3;
+                      if (gridIdx % 2 !== 0) setSettingsSelection(prev => prev - 1);
+                 }
+             } else if (e.key === 'ArrowRight') {
+                 if (settingsSelection === 0) {
+                     // Cycle Language
+                     const langs = Object.values(Language);
+                     const currentIdx = langs.indexOf(settings.language);
+                     const nextIdx = (currentIdx + 1) % langs.length;
+                     setSettings(s => ({...s, language: langs[nextIdx]}));
+                 } else if (settingsSelection === 1) {
+                     setSettings(s => ({...s, showMinimap: !s.showMinimap}));
+                 } else if (settingsSelection === 2) {
+                     toggleFullScreen();
+                 } else if (settingsSelection >= 3 && settingsSelection < closeIndex) {
+                      // Grid move Right
+                      const gridIdx = settingsSelection - 3;
+                      if (gridIdx % 2 === 0 && settingsSelection + 1 < closeIndex) setSettingsSelection(prev => prev + 1);
+                 }
+             } else if (e.key === 'Enter') {
+                 if (settingsSelection === 0) {
+                     // Cycle Lang
+                     const langs = Object.values(Language);
+                     const currentIdx = langs.indexOf(settings.language);
+                     const nextIdx = (currentIdx + 1) % langs.length;
+                     setSettings(s => ({...s, language: langs[nextIdx]}));
+                 } else if (settingsSelection === 1) {
+                     setSettings(s => ({...s, showMinimap: !s.showMinimap}));
+                 } else if (settingsSelection === 2) {
+                     toggleFullScreen();
+                 } else if (settingsSelection >= 3 && settingsSelection < closeIndex) {
+                     // Rebind
+                     const keyIndex = settingsSelection - 3;
+                     const keyName = keyList[keyIndex];
+                     setWaitingForKey(keyName);
+                 } else if (settingsSelection === closeIndex) {
+                     setShowSettings(false);
+                 }
+             } else if (e.key === 'Escape') {
+                 setShowSettings(false);
+             }
+
+             return; 
+          }
+
+          if (status !== GameStatus.MENU && status !== GameStatus.CHARACTER_SELECT && status !== GameStatus.PAUSED) return;
+
           if (status === GameStatus.MENU) {
               if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                   setMenuSelection(prev => (prev === 0 ? 1 : 0));
@@ -219,7 +366,7 @@ export default function App() {
       
       window.addEventListener('keydown', handleMenuNav);
       return () => window.removeEventListener('keydown', handleMenuNav);
-  }, [status, showSettings, menuSelection]);
+  }, [status, showSettings, menuSelection, settingsSelection, settings.keyMap, settings.language, waitingForKey]);
 
   const startGame = () => {
     if (engineRef.current) {
@@ -461,7 +608,7 @@ export default function App() {
                            : 'bg-red-900/50 text-red-200 border border-red-800 hover:bg-red-900'
                        }`}
                    >
-                       {t('KEY_PAUSE')}
+                       {t('RETURN_TO_MENU')}
                    </button>
                </div>
                
@@ -578,14 +725,17 @@ export default function App() {
              <h2 className="text-3xl font-bold text-amber-500 mb-6">{t('SETTING_TITLE')}</h2>
              
              <div className="w-full max-w-md h-80 overflow-y-auto pr-2 custom-scrollbar">
-                {/* Language */}
-                <div className="mb-4">
+                {/* Language (Index 0) */}
+                <div id="setting-item-0" className={`mb-4 p-2 rounded transition-colors ${settingsSelection === 0 ? 'bg-white/10 border border-amber-500' : 'border border-transparent'}`}>
                     <label className="block text-gray-400 text-sm mb-1">{t('SETTING_LANG')}</label>
                     <div className="flex gap-2">
                         {Object.values(Language).map(lang => (
                             <button
                                 key={lang}
-                                onClick={() => setSettings(s => ({...s, language: lang}))}
+                                onClick={() => {
+                                    setSettings(s => ({...s, language: lang}));
+                                    setSettingsSelection(0);
+                                }}
                                 className={`px-3 py-1 text-sm border ${settings.language === lang ? 'bg-amber-600 border-amber-600 text-white' : 'border-gray-600 text-gray-400 hover:border-gray-400'}`}
                             >
                                 {lang === Language.ZH_CN ? '简' : lang === Language.ZH_TW ? '繁' : lang === Language.EN ? 'EN' : 'RU'}
@@ -594,27 +744,54 @@ export default function App() {
                     </div>
                 </div>
 
-                {/* Minimap */}
-                <div className="mb-6 flex items-center justify-between">
+                {/* Minimap (Index 1) */}
+                <div id="setting-item-1" className={`mb-4 flex items-center justify-between p-2 rounded transition-colors ${settingsSelection === 1 ? 'bg-white/10 border border-amber-500' : 'border border-transparent'}`}>
                     <label className="text-gray-400 text-sm">{t('SETTING_MINIMAP')}</label>
                     <button 
-                        onClick={() => setSettings(s => ({...s, showMinimap: !s.showMinimap}))}
+                        onClick={() => {
+                            setSettings(s => ({...s, showMinimap: !s.showMinimap}));
+                            setSettingsSelection(1);
+                        }}
                         className={`w-12 h-6 rounded-full p-1 transition-colors ${settings.showMinimap ? 'bg-green-600' : 'bg-gray-700'}`}
                     >
                         <div className={`w-4 h-4 rounded-full bg-white transform transition-transform ${settings.showMinimap ? 'translate-x-6' : 'translate-x-0'}`} />
                     </button>
                 </div>
 
-                {/* Key Bindings */}
+                {/* Full Screen (Index 2) */}
+                <div id="setting-item-2" className={`mb-6 flex items-center justify-between p-2 rounded transition-colors ${settingsSelection === 2 ? 'bg-white/10 border border-amber-500' : 'border border-transparent'}`}>
+                    <label className="text-gray-400 text-sm">{t('SETTING_FULLSCREEN')}</label>
+                    <button 
+                        onClick={() => {
+                            toggleFullScreen();
+                            setSettingsSelection(2);
+                        }}
+                        className={`w-12 h-6 rounded-full p-1 transition-colors ${settings.isFullScreen ? 'bg-green-600' : 'bg-gray-700'}`}
+                    >
+                        <div className={`w-4 h-4 rounded-full bg-white transform transition-transform ${settings.isFullScreen ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+
+                {/* Key Bindings (Index 3+) */}
                 <h3 className="text-lg font-bold text-white mb-2 border-b border-gray-700 pb-1">{t('SETTING_KEYS')}</h3>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                    {Object.keys(DEFAULT_KEYMAP).map((key) => {
+                    {Object.keys(DEFAULT_KEYMAP).map((key, i) => {
                        const mapKey = key as keyof KeyMap;
+                       const idx = 3 + i;
+                       const isSelected = settingsSelection === idx;
+                       
                        return (
-                         <div key={key} className="flex justify-between items-center bg-white/5 p-2 rounded">
+                         <div id={`setting-item-${idx}`} key={key} 
+                              className={`flex justify-between items-center bg-white/5 p-2 rounded border transition-colors ${isSelected ? 'border-amber-500 bg-white/10' : 'border-transparent'}`}
+                              onClick={() => setSettingsSelection(idx)}
+                         >
                             <span className="text-gray-400">{t(`KEY_${mapKey.replace(/([A-Z])/g, '_$1').toUpperCase()}`)}</span>
                             <button 
-                                onClick={() => setWaitingForKey(mapKey)}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSettingsSelection(idx);
+                                    setWaitingForKey(mapKey);
+                                }}
                                 className={`px-2 py-1 min-w-[60px] text-center font-mono text-xs border rounded ${waitingForKey === mapKey ? 'bg-amber-500 text-black border-amber-500 animate-pulse' : 'bg-black text-amber-200 border-gray-600 hover:border-white'}`}
                             >
                                 {waitingForKey === mapKey ? '...' : settings.keyMap[mapKey]}
@@ -628,8 +805,9 @@ export default function App() {
              {waitingForKey && <div className="mt-4 text-amber-400 font-bold animate-bounce">{t('WAITING_FOR_KEY')}</div>}
 
              <button 
+                id={`setting-item-${3 + Object.keys(DEFAULT_KEYMAP).length}`}
                 onClick={() => setShowSettings(false)}
-                className="mt-6 px-8 py-2 bg-white text-black font-bold hover:bg-gray-200"
+                className={`mt-6 px-8 py-2 font-bold transition-colors ${settingsSelection === (3 + Object.keys(DEFAULT_KEYMAP).length) ? 'bg-amber-500 text-black' : 'bg-white text-black hover:bg-gray-200'}`}
              >
                 {t('CLOSE')}
              </button>

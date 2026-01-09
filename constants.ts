@@ -98,7 +98,8 @@ export const DEFAULT_KEYMAP: KeyMap = {
   shootLeft: 'ArrowLeft',
   shootRight: 'ArrowRight',
   restart: 'KeyR',
-  pause: 'Escape'
+  pause: 'Escape',
+  toggleFullscreen: 'KeyF'
 };
 
 export const TRANSLATIONS: Record<Language, Record<string, string>> = {
@@ -121,11 +122,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     PAUSE_TITLE: "游戏暂停",
     RESUME: "继续游戏",
     RESTART: "重新开始",
+    RETURN_TO_MENU: "返回主页",
     
     // Settings
     SETTING_TITLE: "设置",
     SETTING_LANG: "语言",
     SETTING_MINIMAP: "显示小地图",
+    SETTING_FULLSCREEN: "全屏模式",
     SETTING_KEYS: "按键设置",
     KEY_MOVE_UP: "上移",
     KEY_MOVE_DOWN: "下移",
@@ -137,6 +140,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     KEY_SHOOT_RIGHT: "右射",
     KEY_RESTART: "重开",
     KEY_PAUSE: "暂停",
+    KEY_TOGGLE_FULLSCREEN: "全屏",
     WAITING_FOR_KEY: "请按键...",
     CLOSE: "关闭",
 
@@ -210,10 +214,12 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     PAUSE_TITLE: "遊戲暫停",
     RESUME: "繼續遊戲",
     RESTART: "重新開始",
+    RETURN_TO_MENU: "返回主頁",
     
     SETTING_TITLE: "設置",
     SETTING_LANG: "語言",
     SETTING_MINIMAP: "顯示小地圖",
+    SETTING_FULLSCREEN: "全屏模式",
     SETTING_KEYS: "按鍵設置",
     KEY_MOVE_UP: "上移",
     KEY_MOVE_DOWN: "下移",
@@ -225,6 +231,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     KEY_SHOOT_RIGHT: "右射",
     KEY_RESTART: "重開",
     KEY_PAUSE: "暫停",
+    KEY_TOGGLE_FULLSCREEN: "全屏",
     WAITING_FOR_KEY: "請按鍵...",
     CLOSE: "關閉",
 
@@ -295,10 +302,12 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     PAUSE_TITLE: "PAUSED",
     RESUME: "RESUME",
     RESTART: "RESTART",
+    RETURN_TO_MENU: "Return to Menu",
 
     SETTING_TITLE: "SETTINGS",
     SETTING_LANG: "Language",
     SETTING_MINIMAP: "Show Minimap",
+    SETTING_FULLSCREEN: "Full Screen",
     SETTING_KEYS: "Key Bindings",
     KEY_MOVE_UP: "Move Up",
     KEY_MOVE_DOWN: "Move Down",
@@ -310,6 +319,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     KEY_SHOOT_RIGHT: "Shoot Right",
     KEY_RESTART: "Restart",
     KEY_PAUSE: "Pause",
+    KEY_TOGGLE_FULLSCREEN: "Fullscreen",
     WAITING_FOR_KEY: "Press any key...",
     CLOSE: "Close",
 
@@ -380,10 +390,12 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     PAUSE_TITLE: "ПАУЗА",
     RESUME: "ПРОДОЛЖИТЬ",
     RESTART: "ЗАНОВО",
+    RETURN_TO_MENU: "В Главное Меню",
 
     SETTING_TITLE: "НАСТРОЙКИ",
     SETTING_LANG: "Язык",
     SETTING_MINIMAP: "Миникарта",
+    SETTING_FULLSCREEN: "Полноэкранный режим",
     SETTING_KEYS: "Управление",
     KEY_MOVE_UP: "Вверх",
     KEY_MOVE_DOWN: "Вниз",
@@ -395,6 +407,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     KEY_SHOOT_RIGHT: "Стрелять Вправо",
     KEY_RESTART: "Рестарт",
     KEY_PAUSE: "Пауза",
+    KEY_TOGGLE_FULLSCREEN: "Полный экран",
     WAITING_FOR_KEY: "Нажмите клавишу...",
     CLOSE: "Закрыть",
 

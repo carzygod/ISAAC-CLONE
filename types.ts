@@ -75,11 +75,13 @@ export interface KeyMap {
   shootRight: string;
   restart: string;
   pause: string;
+  toggleFullscreen: string;
 }
 
 export interface Settings {
   language: Language;
   showMinimap: boolean;
+  isFullScreen: boolean;
   keyMap: KeyMap;
 }
 

@@ -125,6 +125,14 @@ export interface EnemyEntity extends Entity {
   aiState: 'IDLE' | 'CHASE' | 'ATTACK' | 'COOLDOWN';
   timer: number;
   orbitAngle?: number; // For Orbiter
+  // Unified stats for enemies (Speed, Damage, etc.)
+  stats: {
+      speed: number;
+      damage: number;
+      fireRate: number;
+      shotSpeed: number;
+      range: number;
+  };
 }
 
 export interface ProjectileEntity extends Entity {

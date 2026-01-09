@@ -69,7 +69,13 @@ export class GameEngine {
   }
 
   createPlayer(): PlayerEntity {
-    // 90% of Original Stats (Reduced by 10%)
+    // STATS ADJUSTMENT
+    // Speed: 0.36 * 4 = 1.44
+    // FireRate (Cooldown): 222 / 4 = 55.5
+    // ShotSpeed: 0.63 * 4 = 2.52
+    // Range: 200 * 2 = 400
+    // Knockback: 10 * 0.1 = 1
+    
     return {
       id: 'player',
       type: EntityType.PLAYER,
@@ -84,14 +90,14 @@ export class GameEngine {
       stats: {
         hp: 6, // 3 Hearts
         maxHp: 6,
-        speed: 4 * 0.9,       // 3.6
+        speed: 1.44,       
         damage: 3.5,
-        fireRate: 20 / 0.9,   // ~22.2 (Slower fire rate)
-        shotSpeed: 7 * 0.9,   // 6.3
-        range: 400,
+        fireRate: 55,      
+        shotSpeed: 2.52,   
+        range: 400,        
         shotSpread: 1,
         bulletScale: 1,
-        knockback: 10 // Base Knockback Force
+        knockback: 1 // Reduced to 10%
       },
       cooldown: 0,
       invincibleTimer: 0,
@@ -210,7 +216,6 @@ export class GameEngine {
     if (!room.cleared && room.type !== 'START') {
         // If it's a Boss room and we are revisiting (fled?), respawn Boss
         if (room.type === 'BOSS' && room.visited) {
-             // Basic boss respawn if savedEntities didn't have it (Boss is EnemyType, not saved)
              this.spawnBoss(cx, cy);
         }
         // Spawn normal enemies
@@ -261,7 +266,14 @@ export class GameEngine {
             maxHp: hp,
             aiState: 'IDLE',
             timer: 0,
-            orbitAngle: rng.next() * Math.PI * 2
+            orbitAngle: rng.next() * Math.PI * 2,
+            stats: {
+                speed: config.speed,
+                damage: config.damage,
+                fireRate: config.fireRate,
+                shotSpeed: config.shotSpeed,
+                range: config.range
+            }
         };
         this.entities.push(enemy);
     }
@@ -286,7 +298,14 @@ export class GameEngine {
           hp: hp,
           maxHp: hp,
           aiState: 'IDLE',
-          timer: 0
+          timer: 0,
+          stats: {
+              speed: config.speed,
+              damage: config.damage,
+              fireRate: config.fireRate,
+              shotSpeed: config.shotSpeed,
+              range: config.range
+          }
       };
       this.entities.push(boss);
   }
@@ -619,11 +638,13 @@ export class GameEngine {
 
   spawnProjectile(owner: PlayerEntity | EnemyEntity, dir: {x:number, y:number}) {
       const isPlayer = owner.type === EntityType.PLAYER;
-      const stats = isPlayer ? (owner as PlayerEntity).stats : null;
+      // UNIFIED STATS ACCESS: Works for both Player and EnemyEntity (now that Enemy has stats)
+      const stats = isPlayer ? (owner as PlayerEntity).stats : (owner as EnemyEntity).stats;
       
-      const speed = stats ? stats.shotSpeed : 5 * 0.9; // 10% Slower for Enemies too
-      const damage = stats ? stats.damage : 1;
-      const knockback = stats ? stats.knockback : 0;
+      const speed = stats.shotSpeed; 
+      const damage = stats.damage;
+      // Enemies use fixed knockback if not in stats, but let's assume 0 for now unless added
+      const knockback = isPlayer ? (owner as PlayerEntity).stats.knockback : 0;
       
       // Feature: Bullet size proportional to attack damage
       // Base Size + (Damage / BaseDamage * scaling)
@@ -635,10 +656,10 @@ export class GameEngine {
           baseSize = baseSize * dmgFactor;
           
           // Apply bullet scale stat
-          baseSize *= stats!.bulletScale;
+          baseSize *= (owner as PlayerEntity).stats.bulletScale;
       }
       
-      const range = stats ? stats.range : 600;
+      const range = stats.range;
       
       // Helper to push a projectile
       const pushProj = (vx: number, vy: number) => {
@@ -659,20 +680,21 @@ export class GameEngine {
           } as ProjectileEntity);
       };
 
-      if (!isPlayer || stats!.shotSpread === 1) {
+      if (!isPlayer || (owner as PlayerEntity).stats.shotSpread === 1) {
           pushProj(dir.x, dir.y);
       } else {
-          // Multi-shot Logic
+          // Multi-shot Logic (Player Only currently)
           const angle = Math.atan2(dir.y, dir.x);
           const spreadRad = 15 * (Math.PI / 180); // 15 degrees spread
+          const pStats = (owner as PlayerEntity).stats;
 
           // Triple Shot: -15, 0, +15
-          if (stats!.shotSpread === 3) {
+          if (pStats.shotSpread === 3) {
               const angles = [angle - spreadRad, angle, angle + spreadRad];
               angles.forEach(a => pushProj(Math.cos(a), Math.sin(a)));
           }
           // Quad Shot: -22.5, -7.5, +7.5, +22.5 (Wider spread)
-          else if (stats!.shotSpread === 4) {
+          else if (pStats.shotSpread === 4) {
               const angles = [
                   angle - spreadRad * 1.5, 
                   angle - spreadRad * 0.5, 
@@ -732,26 +754,26 @@ export class GameEngine {
       e.timer++;
       const distToPlayer = distance(e, this.player);
       
-      // Global 10% Slow modifier (0.9 multiplier) on enemy logic
-      const SPEED_MOD = 0.9;
+      // Use Entity Stats for Movement Speed
+      const speed = e.stats.speed;
 
       if (e.enemyType === EnemyType.CHASER || (e.enemyType === EnemyType.BOSS && distToPlayer > 100)) {
           if (e.timer % 5 === 0) { // Re-path occasionally
             const dir = normalizeVector({ x: this.player.x - e.x, y: this.player.y - e.y });
-            e.velocity = { x: dir.x * 0.6 * SPEED_MOD, y: dir.y * 0.6 * SPEED_MOD };
+            e.velocity = { x: dir.x * speed, y: dir.y * speed };
           }
       } 
       else if (e.enemyType === EnemyType.TANK) {
           // Very slow, follows relentlessly
           if (e.timer % 10 === 0) {
              const dir = normalizeVector({ x: this.player.x - e.x, y: this.player.y - e.y });
-             e.velocity = { x: dir.x * 0.3 * SPEED_MOD, y: dir.y * 0.3 * SPEED_MOD };
+             e.velocity = { x: dir.x * speed, y: dir.y * speed };
           }
       }
       else if (e.enemyType === EnemyType.ORBITER) {
           // Circle the player
           if (!e.orbitAngle) e.orbitAngle = 0;
-          e.orbitAngle += 0.02 * SPEED_MOD; // Rotate speed
+          e.orbitAngle += 0.02 * (speed / 0.1); // Scale Rotation speed relative to movement speed
           const orbitDist = 150;
           const targetX = this.player.x + Math.cos(e.orbitAngle) * orbitDist;
           const targetY = this.player.y + Math.sin(e.orbitAngle) * orbitDist;
@@ -759,23 +781,28 @@ export class GameEngine {
           // Move towards orbit position
           const dx = targetX - e.x;
           const dy = targetY - e.y;
-          e.velocity = { x: dx * 0.05 * SPEED_MOD, y: dy * 0.05 * SPEED_MOD };
+          // Approaching speed
+          e.velocity = { x: dx * 0.05 * (speed / 0.1), y: dy * 0.05 * (speed / 0.1) };
       }
       else if (e.enemyType === EnemyType.SHOOTER) {
           e.velocity = { x: 0, y: 0 };
-          // 120 / 0.9 = ~133 frames (Slower shooting)
-          if (e.timer % Math.floor(120 / SPEED_MOD) === 0 && distToPlayer < 400) {
+          
+          // Use Stats Fire Rate (Cooldown)
+          if (e.timer % e.stats.fireRate === 0 && distToPlayer < e.stats.range) {
               const dir = normalizeVector({ x: this.player.x - e.x, y: this.player.y - e.y });
               this.spawnProjectile(e, dir);
           }
       } else if (e.enemyType === EnemyType.DASHER) {
           if (e.aiState === 'IDLE') {
               e.velocity = {x:0,y:0};
-              if (e.timer > 60 / SPEED_MOD) {
+              // Wait time proportional to speed? Or fixed? Let's scale it inverse to speed
+              const waitTime = Math.floor(60 / (speed / 0.1)); // Normalize against new base speed
+              if (e.timer > waitTime) {
                   e.aiState = 'ATTACK';
                   e.timer = 0;
                   const dir = normalizeVector({ x: this.player.x - e.x, y: this.player.y - e.y });
-                  e.velocity = { x: dir.x * 2.4 * SPEED_MOD, y: dir.y * 2.4 * SPEED_MOD }; 
+                  // Dash speed multiplier relative to base speed
+                  e.velocity = { x: dir.x * speed * 4, y: dir.y * speed * 4 }; 
               }
           } else if (e.aiState === 'ATTACK') {
               if (e.timer > 20) {

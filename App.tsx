@@ -28,6 +28,20 @@ const StatBar: React.FC<{ label: string, value: number, max: number, color: stri
     </div>
 );
 
+// Icons for Mobile Pause Button
+const PauseIcon = () => (
+    <svg viewBox="0 0 24 24" className="w-8 h-8 fill-current text-white">
+        <rect x="6" y="4" width="4" height="16" rx="1" />
+        <rect x="14" y="4" width="4" height="16" rx="1" />
+    </svg>
+);
+
+const PlayIcon = () => (
+    <svg viewBox="0 0 24 24" className="w-8 h-8 fill-current text-white">
+        <path d="M8 5v14l11-7z" />
+    </svg>
+);
+
 // Preview component that draws the actual game asset
 const SpritePreview: React.FC<{ spriteName: string, assetLoader: AssetLoader }> = ({ spriteName, assetLoader }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -167,6 +181,9 @@ export default function App() {
   // Memoize asset loader for UI previews so we don't recreate it
   const uiAssetLoader = useMemo(() => new AssetLoader(), []);
 
+  // Display dimensions state for responsive canvas
+  const [displayDims, setDisplayDims] = useState({ width: CONSTANTS.CANVAS_WIDTH, height: CONSTANTS.CANVAS_HEIGHT });
+
   // Game Data State
   const [gameStats, setGameStats] = useState<{
     hp: number; 
@@ -200,6 +217,32 @@ export default function App() {
     enableJoysticks: checkIsMobile(), // Auto-enable if mobile
     keyMap: { ...DEFAULT_KEYMAP }
   });
+
+  // Handle Resize for Responsive Canvas
+  useEffect(() => {
+    const handleResize = () => {
+        // Goal: Ensure canvas fits within 90% of screen width on mobile, maintaining aspect ratio
+        const maxWidth = window.innerWidth * 0.9;
+        
+        let targetWidth = CONSTANTS.CANVAS_WIDTH;
+        
+        // If screen is smaller than the hardcoded canvas width, scale down
+        if (maxWidth < CONSTANTS.CANVAS_WIDTH) {
+            targetWidth = maxWidth;
+        }
+
+        // Maintain Aspect Ratio
+        const aspectRatio = CONSTANTS.CANVAS_HEIGHT / CONSTANTS.CANVAS_WIDTH;
+        const targetHeight = targetWidth * aspectRatio;
+
+        setDisplayDims({ width: targetWidth, height: targetHeight });
+    };
+
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Initial check
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Translation Helper
   const t = (key: string) => {
@@ -511,6 +554,15 @@ export default function App() {
           setStatus(GameStatus.PLAYING);
       }
   };
+  
+  // Mobile Pause Toggle
+  const toggleMobilePause = () => {
+      if (status === GameStatus.PLAYING) {
+          setStatus(GameStatus.PAUSED);
+      } else if (status === GameStatus.PAUSED) {
+          resumeGame();
+      }
+  };
 
   const copySeed = () => {
       if (gameStats?.seed) {
@@ -581,7 +633,10 @@ export default function App() {
       
       {/* HUD (Show in Playing and Paused) */}
       {(status === GameStatus.PLAYING || status === GameStatus.PAUSED) && gameStats && (
-        <div className="w-full max-w-3xl flex justify-between items-start mb-2 px-4 h-24 pointer-events-none z-10">
+        <div 
+          className="absolute top-0 w-full max-w-3xl flex justify-between items-start pt-2 px-4 h-24 pointer-events-none z-10"
+          style={{ width: displayDims.width }}
+        >
           <div className="flex flex-col justify-end h-full">
             <div className="text-xs text-gray-400 mb-1">{t('HEALTH')}</div>
             {renderHearts()}
@@ -638,7 +693,14 @@ export default function App() {
         <canvas
           ref={canvasRef}
           className="bg-black border-4 border-neutral-700 shadow-2xl rounded-sm cursor-none z-0"
-          style={{ width: CONSTANTS.CANVAS_WIDTH, height: CONSTANTS.CANVAS_HEIGHT }}
+          // We intentionally keep the internal resolution high (CONSTANTS) but scale visual width via style
+          width={CONSTANTS.CANVAS_WIDTH}
+          height={CONSTANTS.CANVAS_HEIGHT}
+          style={{ 
+              width: displayDims.width, 
+              height: displayDims.height,
+              maxWidth: '100vw' 
+          }}
         />
 
         {/* Item Notification Overlay */}
@@ -975,11 +1037,26 @@ export default function App() {
         )}
       </div>
       
-      {/* VIRTUAL JOYSTICKS (Located below the canvas container) */}
-      {status === GameStatus.PLAYING && settings.enableJoysticks && (
-          <div className="w-full max-w-[720px] flex justify-between px-8 py-6 mt-2">
-              <VirtualJoystick label="MOVE" onMove={(v) => joystickMoveRef.current = v} color="#3b82f6" />
-              <VirtualJoystick label="SHOOT" onMove={(v) => joystickShootRef.current = v} color="#ef4444" />
+      {/* VIRTUAL JOYSTICKS & PAUSE BUTTON (Located below the canvas container) */}
+      {(status === GameStatus.PLAYING || status === GameStatus.PAUSED) && settings.enableJoysticks && (
+          <div className="w-full max-w-[720px] flex justify-center items-center px-4 pb-[10vh] mt-2 gap-8 pointer-events-auto">
+              {/* Left Joystick */}
+              <div className="flex-1 flex justify-center">
+                  <VirtualJoystick label="MOVE" onMove={(v) => joystickMoveRef.current = v} color="#3b82f6" />
+              </div>
+
+              {/* Pause Button in Middle */}
+              <button 
+                  onClick={toggleMobilePause}
+                  className="w-16 h-16 rounded-full bg-amber-600/80 border-2 border-amber-400 flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all"
+              >
+                  {status === GameStatus.PAUSED ? <PlayIcon /> : <PauseIcon />}
+              </button>
+
+              {/* Right Joystick */}
+              <div className="flex-1 flex justify-center">
+                   <VirtualJoystick label="SHOOT" onMove={(v) => joystickShootRef.current = v} color="#ef4444" />
+              </div>
           </div>
       )}
     </div>

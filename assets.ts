@@ -1,3 +1,4 @@
+
 import { CONSTANTS } from './constants';
 import { SPRITES } from './sprites';
 
@@ -83,50 +84,35 @@ export class AssetLoader {
     this.assets['ROCK'] = this.createTexture(SPRITES.ROCK,
       ['', P.ROCK_BASE, P.ROCK_HIGHLIGHT, '#000000'], CONSTANTS.TILE_SIZE);
 
-    // Player (Generic/Alpha) - Colored by Engine, but base texture is needed
-    // NOTE: The engine will colorize these, but we load base versions here.
-    // Actually, createTexture bakes the color. 
-    // To support multiple chars with unique colors, we will rely on the engine's drawing using `fillStyle` composite or
-    // we generate white-scale sprites here and tint them?
-    // Current engine uses `ctx.drawImage` directly.
-    // For simplicity, we will generate the texture using a NEUTRAL color (white/grey) for the primary, 
-    // OR we will update the engine to tint.
-    // BUT the prompt asks for different colors. The existing engine uses `e.color` as a fallback or tint?
-    // No, `draw()` currently does: `this.ctx.drawImage(img, ...)` without tinting unless it's flash.
-    // `e.color` is unused if sprite exists.
+    // Player Characters
     
-    // SOLUTION: Use the `e.color` property in `createPlayer` but we need sprite assets that match.
-    // Since we can't dynamically generate assets inside `createPlayer` easily without passing AssetLoader,
-    // we will stick to the predefined sprites in `sprites.ts` (PLAYER, PLAYER_TANK, PLAYER_ROGUE, PLAYER_MAGE)
-    // and rely on the fact that `draw()` draws them.
-    // Wait, if we want them to have specific colors, we need to generate assets for specific colors OR use a tinting draw method.
-    // Let's modify `generateAssets` to generate a White/Greyscale version of the players, 
-    // and modify `game.ts` `draw` method to Tint them if possible?
-    // Canvas 2D tinting is expensive (composite operations) every frame.
-    // Better approach: Generate specific sprites for specific characters? 
-    // Too many combinations if we allow custom colors.
-    // BUT we only have 7 fixed characters now.
-    // So let's generate the sprites for the 7 characters here using their config colors?
-    // No, `assets.ts` doesn't know about `CHARACTERS` config easily without import loop.
-    
-    // ALTERNATIVE: Just use the base sprites defined in `sprites.ts` (PLAYER, PLAYER_TANK, etc)
-    // with a default color (Cyan), and accept that for now they all look Cyan/Blueish in shape,
-    // OR update `draw` to use `globalCompositeOperation = 'source-atop'` to colorize.
-    
-    // Let's stick to the base shapes for now. We defined `PLAYER`, `PLAYER_TANK`, `PLAYER_ROGUE`, `PLAYER_MAGE`.
-    // I will generate them with neutral colors here so they look okay, or just the default palette.
-    
+    // Alpha (Standard)
     this.assets['PLAYER'] = this.createTexture(SPRITES.PLAYER,
       ['', P.PLAYER_MAIN, P.PLAYER_SHADOW, P.PLAYER_SKIN], CONSTANTS.PLAYER_SIZE);
       
+    // Titan (Tank)
     this.assets['PLAYER_TANK'] = this.createTexture(SPRITES.PLAYER_TANK,
-      ['', '#15803d', '#14532d', '#86efac'], CONSTANTS.PLAYER_SIZE); // Greenish
+      ['', '#15803d', '#14532d', '#86efac'], CONSTANTS.PLAYER_SIZE); 
 
+    // Strider (Rogue - Yellow)
     this.assets['PLAYER_ROGUE'] = this.createTexture(SPRITES.PLAYER_ROGUE,
-      ['', '#eab308', '#a16207', '#fef08a'], CONSTANTS.PLAYER_SIZE); // Yellowish
+      ['', '#eab308', '#a16207', '#fef08a'], CONSTANTS.PLAYER_SIZE);
 
+    // Blaster (Mage - Purple)
     this.assets['PLAYER_MAGE'] = this.createTexture(SPRITES.PLAYER_MAGE,
-      ['', '#a855f7', '#7e22ce', '#e9d5ff'], CONSTANTS.PLAYER_SIZE); // Purpleish
+      ['', '#a855f7', '#7e22ce', '#e9d5ff'], CONSTANTS.PLAYER_SIZE);
+
+    // Sniper (Blue - New)
+    this.assets['PLAYER_SNIPER'] = this.createTexture(SPRITES.PLAYER_SNIPER,
+      ['', '#3b82f6', '#1e40af', '#60a5fa'], CONSTANTS.PLAYER_SIZE);
+
+    // Swarm (Red - New)
+    this.assets['PLAYER_SWARM'] = this.createTexture(SPRITES.PLAYER_SWARM,
+      ['', '#ef4444', '#991b1b', '#fca5a5'], CONSTANTS.PLAYER_SIZE);
+
+    // Void (Black - New)
+    this.assets['PLAYER_VOID'] = this.createTexture(SPRITES.PLAYER_VOID,
+      ['', '#171717', '#0a0a0a', '#404040'], CONSTANTS.PLAYER_SIZE);
 
     // Enemies
     this.assets['ENEMY_CHASER'] = this.createTexture(SPRITES.ENEMY_CHASER,

@@ -366,7 +366,7 @@ export default function App() {
       
       window.addEventListener('keydown', handleMenuNav);
       return () => window.removeEventListener('keydown', handleMenuNav);
-  }, [status, showSettings, menuSelection, settingsSelection, settings.keyMap, settings.language, waitingForKey]);
+  }, [status, showSettings, menuSelection, settingsSelection, settings.keyMap, settings.language, waitingForKey, selectedCharIndex]);
 
   const startGame = () => {
     if (engineRef.current) {

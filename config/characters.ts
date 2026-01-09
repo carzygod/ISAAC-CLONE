@@ -1,3 +1,4 @@
+
 import { Stats } from '../types';
 import { CONSTANTS } from '../constants';
 
@@ -91,7 +92,7 @@ export const CHARACTERS: CharacterConfig[] = [
     id: 'sniper',
     nameKey: 'CHAR_SNIPER_NAME',
     descKey: 'CHAR_SNIPER_DESC',
-    sprite: 'PLAYER', // Use default but different color
+    sprite: 'PLAYER_SNIPER', // Updated
     color: '#3b82f6', // Blue
     baseStats: {
       hp: 4,
@@ -110,7 +111,7 @@ export const CHARACTERS: CharacterConfig[] = [
     id: 'swarm',
     nameKey: 'CHAR_SWARM_NAME',
     descKey: 'CHAR_SWARM_DESC',
-    sprite: 'PLAYER_ROGUE', 
+    sprite: 'PLAYER_SWARM', // Updated
     color: '#ef4444', // Red
     baseStats: {
       hp: 6,
@@ -129,7 +130,7 @@ export const CHARACTERS: CharacterConfig[] = [
     id: 'void',
     nameKey: 'CHAR_VOID_NAME',
     descKey: 'CHAR_VOID_DESC',
-    sprite: 'PLAYER_MAGE',
+    sprite: 'PLAYER_VOID', // Updated
     color: '#171717', // Black/Dark
     baseStats: {
       hp: 2, // 1 Heart (Glass Cannon)

@@ -654,10 +654,6 @@ export default function App() {
           </div>
         )}
       </div>
-
-      <div className="mt-4 text-xs text-neutral-600">
-        Engine: React + Canvas 2D | GenAI Prototype
-      </div>
     </div>
   );
 }

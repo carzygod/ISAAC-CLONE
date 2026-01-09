@@ -104,7 +104,7 @@ export const DEFAULT_KEYMAP: KeyMap = {
 export const TRANSLATIONS: Record<Language, Record<string, string>> = {
   [Language.ZH_CN]: {
     GAME_TITLE: "胎渊",
-    START_RUN: "选择角色 (↵)",
+    START_RUN: "开始游戏",
     SETTINGS: "设置",
     HEALTH: "生命值",
     FLOOR: "层数",
@@ -194,7 +194,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
   },
   [Language.ZH_TW]: {
     GAME_TITLE: "胎淵",
-    START_RUN: "選擇角色 (↵)",
+    START_RUN: "開始遊戲",
     SETTINGS: "設置",
     HEALTH: "生命值",
     FLOOR: "層數",
@@ -279,7 +279,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
   },
   [Language.EN]: {
     GAME_TITLE: "ABYSS OF ORIGINS",
-    START_RUN: "SELECT CHAR (↵)",
+    START_RUN: "START GAME",
     SETTINGS: "SETTINGS",
     HEALTH: "HEALTH",
     FLOOR: "FLOOR",
@@ -364,7 +364,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
   },
   [Language.RU]: {
     GAME_TITLE: "БЕЗДНА ИСТОКОВ",
-    START_RUN: "ВЫБОР (↵)",
+    START_RUN: "НАЧАТЬ ИГРУ",
     SETTINGS: "НАСТРОЙКИ",
     HEALTH: "ЗДОРОВЬЕ",
     FLOOR: "ЭТАЖ",

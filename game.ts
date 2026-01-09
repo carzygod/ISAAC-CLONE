@@ -127,8 +127,15 @@ export class GameEngine {
   }
 
   enterRoom(room: Room, inputDir: Direction | null) {
+    // 1. Save state of current room before leaving
+    if (this.currentRoom) {
+        // Save persistent entities: Items, Pedestals, Trapdoors, Obstacles
+        const persistentTypes = [EntityType.ITEM, EntityType.PEDESTAL, EntityType.TRAPDOOR, EntityType.OBSTACLE];
+        const toSave = this.entities.filter(e => persistentTypes.includes(e.type) && !e.markedForDeletion);
+        this.currentRoom.savedEntities = toSave;
+    }
+
     this.currentRoom = room;
-    room.visited = true;
     
     // Sync clear status for Item Rooms (re-entry logic)
     if (room.type === 'ITEM' && room.itemCollected) {
@@ -179,49 +186,40 @@ export class GameEngine {
       this.player.y = cy - this.player.h/2;
     }
 
-    // Spawn Enemies if not cleared
-    // Note: This logic ensures walls block doors because carveDoors is only called if cleared=true
-    if (!room.cleared && room.type !== 'START') {
-      this.spawnEnemiesForRoom(room);
+    // --- Entity Restoration / Generation ---
+
+    // 2. Restore Saved Entities (Items, Pedestals, etc.)
+    if (room.savedEntities && room.savedEntities.length > 0) {
+        this.entities.push(...room.savedEntities);
+    } 
+    // 3. Initial Generation (If not visited)
+    else if (!room.visited) {
+        // Spawn Item if Item Room
+        if (room.type === 'ITEM') {
+            this.spawnItem(cx, cy, room.seed);
+        }
+        
+        // Spawn Boss (Initial Fight)
+        if (room.type === 'BOSS') {
+            this.spawnBoss(cx, cy);
+        }
     }
 
-    // Spawn Item if Item Room
-    if (room.type === 'ITEM') {
-        if (!room.itemCollected) {
-            this.spawnItem(cx, cy, room.seed);
-            // DO NOT force clear here. Room stays locked until item collected.
-        } else {
-            // Spawn empty pedestal if already collected
-            this.spawnPedestal(cx, cy);
+    // 4. Enemy Spawning (Living things)
+    // Note: Bosses spawned above are for initial fight. If returning to uncleared boss room, handle here.
+    if (!room.cleared && room.type !== 'START') {
+        // If it's a Boss room and we are revisiting (fled?), respawn Boss
+        if (room.type === 'BOSS' && room.visited) {
+             // Basic boss respawn if savedEntities didn't have it (Boss is EnemyType, not saved)
+             this.spawnBoss(cx, cy);
+        }
+        // Spawn normal enemies
+        else if (room.type === 'NORMAL') {
+             this.spawnEnemiesForRoom(room);
         }
     }
-    
-    // Boss Spawn
-    if (room.type === 'BOSS') {
-        if (!room.cleared) {
-            this.spawnBoss(cx, cy);
-        } else {
-            // Already cleared boss room logic
-            this.spawnTrapdoor(cx, cy);
-            
-            // Check if items were collected (re-use itemCollected flag for Boss rewards state)
-            if (room.itemCollected) {
-                 // Already picked a reward, show empty pedestals
-                 const off = 80;
-                 this.spawnPedestal(cx - off, cy);
-                 this.spawnPedestal(cx + off, cy);
-            } else {
-                // Cleared but rewards not picked (e.g. re-entered room)
-                // Spawn the choice items again deterministically
-                const off = 80;
-                const choiceId = `boss_reward_${this.floorLevel}`;
-                const rng = new SeededRNG(room.seed + 999); // Use offset seed for rewards
-                
-                this.spawnItem(cx - off, cy, rng.next() * 10000, choiceId);
-                this.spawnItem(cx + off, cy, rng.next() * 10000, choiceId);
-            }
-        }
-    }
+
+    room.visited = true;
   }
 
   spawnEnemiesForRoom(room: Room) {

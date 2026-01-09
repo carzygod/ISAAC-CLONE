@@ -17,7 +17,7 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const inputRef = useRef<InputManager | null>(null);
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number>(0);
 
   // Game Data State
   const [gameStats, setGameStats] = useState<{

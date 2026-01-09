@@ -151,6 +151,7 @@ export interface Room {
   layout: number[][]; // 0: Floor, 1: Wall, 2: Rock
   visited: boolean;
   seed: number; // Deterministic seed for room events
+  savedEntities?: Entity[]; // Persist items, pedestals, trapdoors
 }
 
 export interface GameState {

@@ -7,6 +7,11 @@ import { uuid, checkAABB, distance, normalizeVector, SeededRNG } from './utils';
 import { generateDungeon, carveDoors } from './dungeon';
 import { AssetLoader } from './assets';
 
+// Import Configurations
+import { ENEMIES, BOSSES } from './config/enemies';
+import { ITEMS, DROPS, ItemConfig } from './config/items';
+import { OBSTACLES } from './config/obstacles';
+
 export class GameEngine {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
@@ -225,68 +230,63 @@ export class GameEngine {
     // Don't spawn enemies in Item rooms
     if (room.type === 'ITEM') return;
 
+    // Use a unique RNG for enemy selection in this room
+    const rng = new SeededRNG(room.seed + 100);
+
+    // Filter valid enemies for this floor
+    const validEnemies = ENEMIES.filter(e => e.minFloor <= this.floorLevel);
+
     for (let i = 0; i < count; i++) {
-        const ex = CONSTANTS.TILE_SIZE * 2 + Math.random() * (CONSTANTS.CANVAS_WIDTH - CONSTANTS.TILE_SIZE * 4);
-        const ey = CONSTANTS.TILE_SIZE * 2 + Math.random() * (CONSTANTS.CANVAS_HEIGHT - CONSTANTS.TILE_SIZE * 4);
+        const ex = CONSTANTS.TILE_SIZE * 2 + rng.next() * (CONSTANTS.CANVAS_WIDTH - CONSTANTS.TILE_SIZE * 4);
+        const ey = CONSTANTS.TILE_SIZE * 2 + rng.next() * (CONSTANTS.CANVAS_HEIGHT - CONSTANTS.TILE_SIZE * 4);
         
         // Don't spawn on top of player
         if (distance({x: ex, y: ey}, this.player) < 150) continue;
 
-        const typeRoll = Math.random();
-        let eType = EnemyType.CHASER;
-        let color = CONSTANTS.COLORS.ENEMY; // Red
-        let size = CONSTANTS.ENEMY_SIZE;
-        let hp = 10 + (this.floorLevel * 2);
+        // Select Enemy Config based on weight
+        const config = rng.weightedChoice(validEnemies);
+        if (!config) continue;
 
-        if (typeRoll > 0.85) {
-            eType = EnemyType.TANK;
-            color = CONSTANTS.COLORS.ENEMY_TANK;
-            size = 40;
-            hp = 30 + (this.floorLevel * 5);
-        } else if (typeRoll > 0.7) {
-            eType = EnemyType.ORBITER;
-            color = CONSTANTS.COLORS.ENEMY_ORBITER;
-        } else if (typeRoll > 0.5) {
-            eType = EnemyType.SHOOTER;
-            color = CONSTANTS.COLORS.ENEMY_FLYING; // Blue
-        } else if (typeRoll > 0.35) {
-            eType = EnemyType.DASHER;
-            color = CONSTANTS.COLORS.ENEMY; // Red
-        }
+        const hp = config.hpBase + (this.floorLevel * config.hpPerLevel);
 
         const enemy: EnemyEntity = {
             id: uuid(),
             type: EntityType.ENEMY,
             x: ex, y: ey,
-            w: size, h: size,
+            w: config.size, h: config.size,
             velocity: { x: 0, y: 0 },
             knockbackVelocity: { x: 0, y: 0 },
-            color: color,
+            color: config.color,
             markedForDeletion: false,
-            enemyType: eType,
+            enemyType: config.type,
             hp: hp,
             maxHp: hp,
             aiState: 'IDLE',
             timer: 0,
-            orbitAngle: Math.random() * Math.PI * 2
+            orbitAngle: rng.next() * Math.PI * 2
         };
         this.entities.push(enemy);
     }
   }
 
   spawnBoss(x: number, y: number) {
+      // Pick a random boss (currently only one)
+      const config = BOSSES[0]; 
+      
+      const hp = config.hpBase + (this.floorLevel * config.hpPerLevel);
+
       const boss: EnemyEntity = {
           id: uuid(),
           type: EntityType.ENEMY,
-          x: x - 40, y: y - 40,
-          w: 80, h: 80,
+          x: x - config.size/2, y: y - config.size/2,
+          w: config.size, h: config.size,
           velocity: {x:0, y:0},
           knockbackVelocity: { x: 0, y: 0 },
-          color: CONSTANTS.COLORS.ENEMY_BOSS,
+          color: config.color,
           markedForDeletion: false,
-          enemyType: EnemyType.BOSS,
-          hp: 100 + (this.floorLevel * 20),
-          maxHp: 100 + (this.floorLevel * 20),
+          enemyType: config.type,
+          hp: hp,
+          maxHp: hp,
           aiState: 'IDLE',
           timer: 0
       };
@@ -312,28 +312,11 @@ export class GameEngine {
       // Always spawn pedestal first (draw order: pedestal behind item)
       this.spawnPedestal(x, y);
 
-      // Exclude PICKUPs from item room generation
-      const types = Object.values(ItemType).filter(t => t !== ItemType.HEART_PICKUP);
-      
       const rng = seed !== undefined ? new SeededRNG(seed) : new SeededRNG(Math.random() * 100000);
-      const type = types[Math.floor(rng.next() * types.length)];
       
-      let nameKey = "";
-      let descKey = "";
-
-      // Assign Translation Keys instead of Strings
-      switch(type) {
-          case ItemType.HP_UP: nameKey = "ITEM_HP_UP_NAME"; descKey = "ITEM_HP_UP_DESC"; break;
-          case ItemType.DAMAGE_UP: nameKey = "ITEM_DAMAGE_UP_NAME"; descKey = "ITEM_DAMAGE_UP_DESC"; break;
-          case ItemType.SPEED_UP: nameKey = "ITEM_SPEED_UP_NAME"; descKey = "ITEM_SPEED_UP_DESC"; break;
-          case ItemType.FIRE_RATE_UP: nameKey = "ITEM_FIRE_RATE_UP_NAME"; descKey = "ITEM_FIRE_RATE_UP_DESC"; break;
-          case ItemType.SHOT_SPEED_UP: nameKey = "ITEM_SHOT_SPEED_UP_NAME"; descKey = "ITEM_SHOT_SPEED_UP_DESC"; break;
-          case ItemType.RANGE_UP: nameKey = "ITEM_RANGE_UP_NAME"; descKey = "ITEM_RANGE_UP_DESC"; break;
-          case ItemType.BULLET_SIZE_UP: nameKey = "ITEM_BULLET_SIZE_UP_NAME"; descKey = "ITEM_BULLET_SIZE_UP_DESC"; break;
-          case ItemType.TRIPLE_SHOT: nameKey = "ITEM_TRIPLE_SHOT_NAME"; descKey = "ITEM_TRIPLE_SHOT_DESC"; break;
-          case ItemType.QUAD_SHOT: nameKey = "ITEM_QUAD_SHOT_NAME"; descKey = "ITEM_QUAD_SHOT_DESC"; break;
-          case ItemType.KNOCKBACK_UP: nameKey = "ITEM_KNOCKBACK_UP_NAME"; descKey = "ITEM_KNOCKBACK_UP_DESC"; break;
-      }
+      // Select random item from config
+      const config = rng.weightedChoice(ITEMS);
+      if (!config) return;
 
       const item: ItemEntity = {
           id: uuid(),
@@ -344,17 +327,20 @@ export class GameEngine {
           h: CONSTANTS.ITEM_SIZE,
           velocity: {x:0, y:0},
           knockbackVelocity: { x: 0, y: 0 },
-          color: CONSTANTS.COLORS.ITEM,
+          color: config.color,
           markedForDeletion: false,
-          itemType: type,
-          name: nameKey,
-          description: descKey,
+          itemType: config.type,
+          name: config.nameKey,
+          description: config.descKey,
           choiceGroupId: choiceGroupId
       };
       this.entities.push(item);
   }
   
   spawnPickup(x: number, y: number) {
+      // Select pickup (currently only heart)
+      const config = DROPS[0]; 
+
       const pickup: ItemEntity = {
           id: uuid(),
           type: EntityType.ITEM,
@@ -364,11 +350,11 @@ export class GameEngine {
           h: 16,
           velocity: {x:0, y:0},
           knockbackVelocity: { x: 0, y: 0 },
-          color: CONSTANTS.COLORS.HEART,
+          color: config.color,
           markedForDeletion: false,
-          itemType: ItemType.HEART_PICKUP,
-          name: "PICKUP_HEART_NAME",
-          description: "PICKUP_HEART_DESC"
+          itemType: config.type,
+          name: config.nameKey,
+          description: config.descKey
       };
       this.entities.push(pickup);
   }
@@ -420,6 +406,7 @@ export class GameEngine {
           maxHp: this.player.stats.maxHp,
           floor: this.floorLevel,
           score: this.score,
+          seed: this.baseSeed,
           items: this.player.inventory.length,
           notification: this.notification,
           dungeon: this.dungeon.map(r => ({x: r.x, y: r.y, type: r.type, visited: r.visited})),
@@ -843,7 +830,13 @@ export class GameEngine {
       
       if (e.hp <= 0) {
           e.markedForDeletion = true;
-          this.score += e.maxHp * 10;
+          this.score += 10; // Default score
+          
+          // Look up score value from config if available
+          const config = ENEMIES.find(cfg => cfg.type === e.enemyType) || BOSSES.find(cfg => cfg.type === e.enemyType);
+          if (config) {
+             this.score += (config.scoreValue - 10);
+          }
           
           // 5% Chance to drop Heart Pickup
           if (Math.random() < 0.05) {
@@ -857,8 +850,12 @@ export class GameEngine {
       
       // Handle Pickups (Instant consume)
       if (item.itemType === ItemType.HEART_PICKUP) {
-          this.player.stats.hp = Math.min(this.player.stats.hp + 1, this.player.stats.maxHp);
-          // Pass Translation Keys via Notification
+          // Find config for pickup logic
+          const config = DROPS.find(d => d.type === item.itemType);
+          if (config && config.stats.hp) {
+              this.player.stats.hp = Math.min(this.player.stats.hp + config.stats.hp, this.player.stats.maxHp);
+          }
+          
           this.notification = "PICKUP_HEART_DESC"; 
           this.notificationTimer = 60;
           return;
@@ -871,8 +868,6 @@ export class GameEngine {
                   (e as ItemEntity).choiceGroupId === item.choiceGroupId && 
                   e.id !== item.id) {
                   e.markedForDeletion = true; // Remove other choice
-                  
-                  // Optional: spawn a poof effect here
               }
           });
       }
@@ -893,24 +888,22 @@ export class GameEngine {
       this.notification = `${item.name}:${item.description}`;
       this.notificationTimer = 180; // 3 seconds
       
-      // Apply stats
-      const s = this.player.stats;
-      switch(item.itemType) {
-          case ItemType.HP_UP: 
-              s.maxHp += 2; 
-              s.hp = Math.min(s.hp + 2, s.maxHp); 
-              break;
-          case ItemType.DAMAGE_UP: 
-              s.damage *= 1.1; 
-              break;
-          case ItemType.SPEED_UP: s.speed += 0.5; break;
-          case ItemType.FIRE_RATE_UP: s.fireRate = Math.max(5, s.fireRate * 0.8); break; // 20% reduction (faster)
-          case ItemType.SHOT_SPEED_UP: s.shotSpeed += 1.5; break;
-          case ItemType.RANGE_UP: s.range *= 1.2; break;
-          case ItemType.BULLET_SIZE_UP: s.bulletScale += 0.5; break;
-          case ItemType.TRIPLE_SHOT: s.shotSpread = 3; break;
-          case ItemType.QUAD_SHOT: s.shotSpread = 4; break;
-          case ItemType.KNOCKBACK_UP: s.knockback *= 1.2; break; // +20% Knockback
+      // Apply stats via Config
+      const config = ITEMS.find(i => i.type === item.itemType);
+      if (config) {
+          const s = this.player.stats;
+          const mods = config.stats;
+
+          if (mods.maxHp) { s.maxHp += mods.maxHp; s.hp = Math.min(s.hp + mods.maxHp, s.maxHp); }
+          if (mods.hp) { s.hp = Math.min(s.hp + mods.hp, s.maxHp); }
+          if (mods.damage) s.damage *= mods.damage;
+          if (mods.speed) s.speed += mods.speed;
+          if (mods.fireRate) s.fireRate = Math.max(5, s.fireRate * mods.fireRate);
+          if (mods.shotSpeed) s.shotSpeed += mods.shotSpeed;
+          if (mods.range) s.range *= mods.range;
+          if (mods.bulletScale) s.bulletScale += mods.bulletScale;
+          if (mods.knockback) s.knockback *= mods.knockback;
+          if (mods.shotSpread) s.shotSpread = mods.shotSpread;
       }
   }
 
@@ -946,6 +939,9 @@ export class GameEngine {
               const r = Math.floor(p.y / ts);
               if (r < 0 || r >= map.length || c < 0 || c >= map[0].length) return true;
               const tile = map[r][c];
+              
+              // 1 = Wall, 2 = Rock (Obstacle)
+              // We check config if needed, but currently IDs are fixed in dungeon generation
               if (tile === 1 || tile === 2) return true;
           }
           return false;
@@ -1050,6 +1046,7 @@ export class GameEngine {
               if (tile === 1 && wallImg) { // Wall
                   this.ctx.drawImage(wallImg, x, y);
               } else if (tile === 2 && rockImg) { // Rock
+                  // Check OBSTACLES config if we want specific rock behavior, but simple drawing is fine
                   this.ctx.drawImage(rockImg, x, y);
               } else if (tile === 3) { // Door floor (Open)
                   // Floor already drawn
@@ -1126,21 +1123,19 @@ export class GameEngine {
           // Match Entity Type to Asset
           if (e.type === EntityType.PLAYER) spriteKey = 'PLAYER';
           else if (e.type === EntityType.ITEM) {
-               spriteKey = (e as ItemEntity).itemType === ItemType.HEART_PICKUP ? 'HEART' : 'ITEM';
+               // Map item type to sprite via config (simplified)
+               const conf = ITEMS.find(i => i.type === (e as ItemEntity).itemType) || DROPS.find(d => d.type === (e as ItemEntity).itemType);
+               spriteKey = conf ? conf.sprite : 'ITEM';
           }
           else if (e.type === EntityType.PROJECTILE) {
               const p = e as ProjectileEntity;
               spriteKey = p.ownerId === 'player' ? 'PROJ_PLAYER' : 'PROJ_ENEMY';
           }
           else if (e.type === EntityType.ENEMY) {
+              // Map enemy type to sprite via config
               const en = e as EnemyEntity;
-              switch(en.enemyType) {
-                  case EnemyType.CHASER: spriteKey = 'ENEMY_CHASER'; break;
-                  case EnemyType.SHOOTER: spriteKey = 'ENEMY_SHOOTER'; break;
-                  case EnemyType.TANK: spriteKey = 'ENEMY_TANK'; break;
-                  case EnemyType.BOSS: spriteKey = 'ENEMY_BOSS'; break;
-                  default: spriteKey = 'ENEMY_CHASER';
-              }
+              const conf = ENEMIES.find(x => x.type === en.enemyType) || BOSSES.find(x => x.type === en.enemyType);
+              spriteKey = conf ? conf.sprite : 'ENEMY_CHASER';
           }
 
           if (spriteKey) {

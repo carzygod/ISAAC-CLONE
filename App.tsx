@@ -25,6 +25,7 @@ export default function App() {
     maxHp: number; 
     floor: number; 
     score: number; 
+    seed: number;
     items: number;
     notification: string | null;
     dungeon: {x:number, y:number, type: string, visited: boolean}[];
@@ -36,6 +37,7 @@ export default function App() {
   const [status, setStatus] = useState<GameStatus>(GameStatus.MENU);
   const [showSettings, setShowSettings] = useState(false);
   const [waitingForKey, setWaitingForKey] = useState<keyof KeyMap | null>(null);
+  const [menuSelection, setMenuSelection] = useState(0); // 0: Resume, 1: Settings, 2: Restart
 
   // Settings State
   const [settings, setSettings] = useState<Settings>({
@@ -99,7 +101,7 @@ export default function App() {
     }
   }, [settings.keyMap]);
 
-  // Key Binding Listener
+  // Key Binding Listener (Settings)
   useEffect(() => {
     if (!waitingForKey) return;
 
@@ -128,12 +130,32 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleRebind);
   }, [waitingForKey]);
 
+  // Menu Navigation Listener
+  useEffect(() => {
+      if (status !== GameStatus.PAUSED || showSettings) return;
+
+      const handleMenuNav = (e: KeyboardEvent) => {
+          if (e.key === 'ArrowUp') {
+              setMenuSelection(prev => (prev - 1 + 3) % 3);
+          } else if (e.key === 'ArrowDown') {
+              setMenuSelection(prev => (prev + 1) % 3);
+          } else if (e.key === 'Enter') {
+              if (menuSelection === 0) resumeGame();
+              else if (menuSelection === 1) setShowSettings(true);
+              else if (menuSelection === 2) startGame();
+          }
+      };
+      
+      window.addEventListener('keydown', handleMenuNav);
+      return () => window.removeEventListener('keydown', handleMenuNav);
+  }, [status, showSettings, menuSelection]);
 
   const startGame = () => {
     if (engineRef.current) {
       engineRef.current.startNewGame();
       setStatus(GameStatus.PLAYING);
       setShowSettings(false);
+      setMenuSelection(0);
       canvasRef.current?.focus();
     }
   };
@@ -145,22 +167,21 @@ export default function App() {
       }
   };
 
+  const copySeed = () => {
+      if (gameStats?.seed) {
+          navigator.clipboard.writeText(gameStats.seed.toString());
+          // Optional: Show quick feedback
+      }
+  };
+
   const renderHearts = () => {
     if (!gameStats) return null;
     const hearts = [];
-    // Calculate total hearts (maxHp / 2)
     const totalHearts = Math.ceil(gameStats.maxHp / 2);
     
     for(let i=0; i<totalHearts; i++) {
-        // Calculate health for this heart (0, 1, or 2)
         const heartHealth = Math.max(0, Math.min(2, gameStats.hp - (i * 2)));
-        // For simplicity in this pixel style, let's just do Full or Empty/Half
-        // A truly detailed half-heart sprite would be better, but for now:
-        // If heartHealth >= 1 it is "full" (visually), otherwise empty-ish
-        // Actually, let's just use full heart for any health > 0 in that slot for now, 
-        // or distinguish empty vs full.
         const isFull = heartHealth > 0;
-        
         hearts.push(
             <PixelHeart key={i} full={isFull} />
         );
@@ -311,26 +332,56 @@ export default function App() {
         {/* PAUSE MENU OVERLAY */}
         {status === GameStatus.PAUSED && !showSettings && (
            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-8 z-50">
-               <h2 className="text-5xl font-black text-white mb-8 tracking-widest drop-shadow-lg">{t('PAUSE_TITLE')}</h2>
+               <h2 className="text-5xl font-black text-white mb-6 tracking-widest drop-shadow-lg">{t('PAUSE_TITLE')}</h2>
+               
+               {/* Seed Display */}
+               <div className="mb-8 flex items-center gap-2 bg-black/40 px-3 py-1 rounded border border-white/10">
+                   <span className="text-xs text-gray-400">SEED:</span>
+                   <span className="font-mono text-amber-300 text-sm">{gameStats?.seed}</span>
+                   <button onClick={copySeed} className="ml-2 text-xs text-blue-300 hover:text-white" title="Copy Seed">
+                       [COPY]
+                   </button>
+               </div>
+
                <div className="flex flex-col gap-4 w-64">
                    <button 
                        onClick={resumeGame}
-                       className="px-6 py-3 bg-white text-black font-bold text-xl hover:bg-amber-300 transition-colors"
+                       onMouseEnter={() => setMenuSelection(0)}
+                       className={`px-6 py-3 font-bold text-xl transition-all duration-100 ${
+                           menuSelection === 0 
+                           ? 'bg-white text-black translate-x-2 border-l-4 border-amber-500' 
+                           : 'bg-black/50 text-gray-300 border border-gray-600 hover:bg-gray-800'
+                       }`}
                    >
                        {t('RESUME')}
                    </button>
                    <button 
                        onClick={() => setShowSettings(true)}
-                       className="px-6 py-3 bg-gray-800 text-white border border-gray-600 font-bold text-xl hover:bg-gray-700 transition-colors"
+                       onMouseEnter={() => setMenuSelection(1)}
+                       className={`px-6 py-3 font-bold text-xl transition-all duration-100 ${
+                           menuSelection === 1
+                           ? 'bg-white text-black translate-x-2 border-l-4 border-amber-500' 
+                           : 'bg-black/50 text-gray-300 border border-gray-600 hover:bg-gray-800'
+                       }`}
                    >
                        {t('SETTINGS')}
                    </button>
                    <button 
                        onClick={startGame}
-                       className="px-6 py-3 bg-red-900/80 text-white border border-red-700 font-bold text-xl hover:bg-red-800 transition-colors"
+                       onMouseEnter={() => setMenuSelection(2)}
+                       className={`px-6 py-3 font-bold text-xl transition-all duration-100 ${
+                           menuSelection === 2 
+                           ? 'bg-red-500 text-white translate-x-2 border-l-4 border-white' 
+                           : 'bg-red-900/50 text-red-200 border border-red-800 hover:bg-red-900'
+                       }`}
                    >
                        {t('RESTART')}
                    </button>
+               </div>
+               
+               <div className="mt-8 text-xs text-gray-500 flex gap-4">
+                    <span>↑/↓: Navigate</span>
+                    <span>ENTER: Select</span>
                </div>
            </div>
         )}

@@ -43,6 +43,22 @@ export class SeededRNG {
   rangeInt(min: number, max: number): number {
     return Math.floor(this.range(min, max + 1));
   }
+
+  // Generic Weighted Random Selection
+  weightedChoice<T extends { weight: number }>(items: T[]): T | null {
+      if (items.length === 0) return null;
+      
+      const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+      let randomVal = this.next() * totalWeight;
+      
+      for (const item of items) {
+          if (randomVal < item.weight) {
+              return item;
+          }
+          randomVal -= item.weight;
+      }
+      return items[items.length - 1];
+  }
 }
 
 export class InputManager {

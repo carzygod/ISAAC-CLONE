@@ -280,10 +280,17 @@ export default function App() {
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
-  // Reset settings selection when opening
+  // Reset settings/menu selection when opening various screens
   useEffect(() => {
     if(showSettings) setSettingsSelection(0);
   }, [showSettings]);
+
+  useEffect(() => {
+      // Reset menu selection when entering specific states
+      if (status === GameStatus.GAME_OVER) {
+          setMenuSelection(0);
+      }
+  }, [status]);
 
   // Global Key Listener for Full Screen
   useEffect(() => {
@@ -314,30 +321,33 @@ export default function App() {
 
     const loop = () => {
       if (engineRef.current && inputRef.current) {
-        // Prevent game input when in Menu
+        // Inputs
+        const restart = inputRef.current.isRestartPressed();
+        const pause = inputRef.current.isPausePressed();
+        
+        let move = { x: 0, y: 0 };
+        let shoot = null;
+
         if (engineRef.current.status === GameStatus.PLAYING) {
             const kbMove = inputRef.current.getMovementVector();
             const kbShoot = inputRef.current.getShootingDirection();
             
             // Merge Joystick and Keyboard Input
-            // Priority: Keyboard if pressed, otherwise Joystick
-            const move = {
+            move = {
                 x: (Math.abs(kbMove.x) > 0 ? kbMove.x : joystickMoveRef.current.x),
                 y: (Math.abs(kbMove.y) > 0 ? kbMove.y : joystickMoveRef.current.y)
             };
             
-            const shoot = (kbShoot && (Math.abs(kbShoot.x) > 0 || Math.abs(kbShoot.y) > 0)) 
+            shoot = (kbShoot && (Math.abs(kbShoot.x) > 0 || Math.abs(kbShoot.y) > 0)) 
                           ? kbShoot 
                           : (Math.abs(joystickShootRef.current.x) > 0.2 || Math.abs(joystickShootRef.current.y) > 0.2) // Deadzone for shooting
                               ? joystickShootRef.current 
                               : null;
-
-            const restart = inputRef.current.isRestartPressed();
-            const pause = inputRef.current.isPausePressed();
-            
-            // Pass logic to engine
-            engineRef.current.update({ move, shoot, restart, pause });
         }
+        
+        // Pass logic to engine (Allow updates in GAME_OVER for Restart timer)
+        engineRef.current.update({ move, shoot, restart, pause });
+        
         engineRef.current.draw();
       }
       requestRef.current = requestAnimationFrame(loop);
@@ -498,7 +508,7 @@ export default function App() {
              return; 
           }
 
-          if (status !== GameStatus.MENU && status !== GameStatus.CHARACTER_SELECT && status !== GameStatus.PAUSED) return;
+          if (status !== GameStatus.MENU && status !== GameStatus.CHARACTER_SELECT && status !== GameStatus.PAUSED && status !== GameStatus.GAME_OVER) return;
 
           if (status === GameStatus.MENU) {
               if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
@@ -533,6 +543,16 @@ export default function App() {
                   else if (menuSelection === 2) {
                       setStatus(GameStatus.MENU); // Quit to Menu
                   }
+              }
+          }
+          else if (status === GameStatus.GAME_OVER) {
+              if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                  setMenuSelection(prev => (prev === 0 ? 1 : 0));
+              } else if (e.key === 'Enter') {
+                  if (menuSelection === 0) startGame();
+                  else if (menuSelection === 1) setStatus(GameStatus.MENU);
+              } else if (e.key === 'Escape') {
+                  setStatus(GameStatus.MENU);
               }
           }
       };
@@ -748,9 +768,9 @@ export default function App() {
             </div>
         )}
         
-        {/* RESTART HINT OVERLAY */}
-        {status === GameStatus.PLAYING && engineRef.current && engineRef.current.restartTimer > 0 && (
-           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
+        {/* RESTART HINT OVERLAY - Show in Playing OR Game Over */}
+        {(status === GameStatus.PLAYING || status === GameStatus.GAME_OVER) && engineRef.current && engineRef.current.restartTimer > 0 && (
+           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
               <div className="text-white font-bold text-xl drop-shadow-md">{t('HOLD_R')}</div>
            </div>
         )}
@@ -1029,13 +1049,33 @@ export default function App() {
               {t('FLOOR')}: {gameStats?.floor} <br/>
               {t('SCORE')}: {gameStats?.score}
             </p>
-            <button 
-              onClick={startGame} // Note: This restarts with the PREVIOUSLY selected character stored in engine or state
-              className="px-8 py-3 bg-red-500 text-white font-bold text-xl hover:bg-red-400 active:scale-95 transition-transform"
-            >
-              {t('TRY_AGAIN')}
-            </button>
-            <p className="text-white/50 mt-4 text-sm">{t('RESTART_HINT')}</p>
+            
+            <div className="flex flex-col gap-4 w-64">
+                <button 
+                  onClick={startGame} 
+                  onMouseEnter={() => setMenuSelection(0)}
+                  className={`px-8 py-3 font-bold text-xl transition-all duration-100 ${
+                      menuSelection === 0
+                      ? 'bg-red-500 text-white border-l-4 border-white translate-x-2'
+                      : 'bg-red-800/50 text-red-200 border border-red-700 hover:bg-red-800'
+                  }`}
+                >
+                  {t('TRY_AGAIN')}
+                </button>
+                <button 
+                  onClick={() => setStatus(GameStatus.MENU)} 
+                  onMouseEnter={() => setMenuSelection(1)}
+                  className={`px-8 py-3 font-bold text-xl transition-all duration-100 ${
+                      menuSelection === 1
+                      ? 'bg-red-500 text-white border-l-4 border-white translate-x-2'
+                      : 'bg-red-800/50 text-red-200 border border-red-700 hover:bg-red-800'
+                  }`}
+                >
+                  {t('RETURN_TO_MENU')}
+                </button>
+            </div>
+
+            <p className="text-white/50 mt-8 text-sm">{t('RESTART_HINT')}</p>
           </div>
         )}
       </div>

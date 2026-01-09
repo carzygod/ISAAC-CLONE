@@ -221,14 +221,16 @@ export default function App() {
   // Handle Resize for Responsive Canvas
   useEffect(() => {
     const handleResize = () => {
-        // Goal: Ensure canvas fits within 90% of screen width on mobile, maintaining aspect ratio
-        const maxWidth = window.innerWidth * 0.9;
+        // Goal: Ensure canvas fits within 80% of screen width on mobile if smaller than canvas, 
+        // to prevent sidebar occlusion.
+        const windowWidth = window.innerWidth;
+        const nativeWidth = CONSTANTS.CANVAS_WIDTH;
         
-        let targetWidth = CONSTANTS.CANVAS_WIDTH;
+        let targetWidth = nativeWidth;
         
-        // If screen is smaller than the hardcoded canvas width, scale down
-        if (maxWidth < CONSTANTS.CANVAS_WIDTH) {
-            targetWidth = maxWidth;
+        // If screen is smaller than the hardcoded canvas width, scale down to 80%
+        if (windowWidth < nativeWidth) {
+            targetWidth = windowWidth * 0.8;
         }
 
         // Maintain Aspect Ratio

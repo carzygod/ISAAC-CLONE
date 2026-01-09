@@ -1,3 +1,4 @@
+
 // Vector Math
 export interface Vector2 {
   x: number;
@@ -82,6 +83,7 @@ export interface Settings {
   language: Language;
   showMinimap: boolean;
   isFullScreen: boolean;
+  enableJoysticks: boolean; // New Setting
   keyMap: KeyMap;
 }
 

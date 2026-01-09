@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { GameEngine } from './game';
 import { InputManager } from './utils';
-import { GameStatus, Settings, Language, KeyMap, Stats } from './types';
+import { GameStatus, Settings, Language, KeyMap, Stats, Vector2 } from './types';
 import { CONSTANTS, TRANSLATIONS, DEFAULT_KEYMAP } from './constants';
 import { CHARACTERS } from './config/characters';
 import { AssetLoader } from './assets';
@@ -49,11 +49,120 @@ const SpritePreview: React.FC<{ spriteName: string, assetLoader: AssetLoader }> 
     return <canvas ref={canvasRef} width={128} height={128} className="w-24 h-24" style={{imageRendering: 'pixelated'}} />;
 };
 
+// Virtual Joystick Component
+interface JoystickProps {
+  onMove: (vec: Vector2) => void;
+  color?: string;
+  label?: string;
+}
+
+const VirtualJoystick: React.FC<JoystickProps> = ({ onMove, color = 'white', label }) => {
+    const radius = 60; // Base radius
+    const stickRadius = 25;
+    const [active, setActive] = useState(false);
+    const [pos, setPos] = useState({ x: 0, y: 0 });
+    const ref = useRef<HTMLDivElement>(null);
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        setActive(true);
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (!ref.current) return;
+        
+        // Find the touch that started this (simple assumption: closest touch or first)
+        const touch = e.targetTouches[0]; 
+        const rect = ref.current.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        const dx = touch.clientX - centerX;
+        const dy = touch.clientY - centerY;
+        
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const maxDist = radius - stickRadius;
+        
+        let cappedX = dx;
+        let cappedY = dy;
+        
+        if (dist > maxDist) {
+            const angle = Math.atan2(dy, dx);
+            cappedX = Math.cos(angle) * maxDist;
+            cappedY = Math.sin(angle) * maxDist;
+        }
+
+        setPos({ x: cappedX, y: cappedY });
+        
+        // Normalize for output (-1 to 1)
+        onMove({
+            x: cappedX / maxDist,
+            y: cappedY / maxDist
+        });
+    };
+
+    const handleTouchEnd = () => {
+        setActive(false);
+        setPos({ x: 0, y: 0 });
+        onMove({ x: 0, y: 0 });
+    };
+
+    const baseStyle: React.CSSProperties = {
+        width: `${radius * 2}px`,
+        height: `${radius * 2}px`,
+        borderRadius: '50%',
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        border: `2px solid ${active ? color : 'rgba(255,255,255,0.3)'}`,
+        touchAction: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative'
+    };
+
+    const stickStyle: React.CSSProperties = {
+        width: `${stickRadius * 2}px`,
+        height: `${stickRadius * 2}px`,
+        borderRadius: '50%',
+        backgroundColor: active ? color : 'rgba(255,255,255,0.5)',
+        transform: `translate(${pos.x}px, ${pos.y}px)`,
+        transition: active ? 'none' : 'transform 0.1s ease-out'
+    };
+
+    return (
+        <div className="flex flex-col items-center">
+            <div 
+                ref={ref}
+                style={baseStyle} 
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchEnd}
+            >
+                <div style={stickStyle} />
+            </div>
+            {label && <span className="text-gray-500 text-xs mt-2 uppercase font-bold tracking-wider">{label}</span>}
+        </div>
+    );
+};
+
+// Helper to check for mobile environment
+const checkIsMobile = () => {
+    if (typeof window === 'undefined') return false;
+    return (
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+        window.innerWidth < 768
+    );
+};
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const inputRef = useRef<InputManager | null>(null);
   const requestRef = useRef<number>(0);
+
+  // Joystick Input Refs (direct access for game loop to avoid React state lag)
+  const joystickMoveRef = useRef<Vector2>({ x: 0, y: 0 });
+  const joystickShootRef = useRef<Vector2>({ x: 0, y: 0 });
 
   // Memoize asset loader for UI previews so we don't recreate it
   const uiAssetLoader = useMemo(() => new AssetLoader(), []);
@@ -88,6 +197,7 @@ export default function App() {
     language: Language.ZH_CN,
     showMinimap: true,
     isFullScreen: false,
+    enableJoysticks: checkIsMobile(), // Auto-enable if mobile
     keyMap: { ...DEFAULT_KEYMAP }
   });
 
@@ -161,12 +271,26 @@ export default function App() {
       if (engineRef.current && inputRef.current) {
         // Prevent game input when in Menu
         if (engineRef.current.status === GameStatus.PLAYING) {
-            const move = inputRef.current.getMovementVector();
-            const shoot = inputRef.current.getShootingDirection();
+            const kbMove = inputRef.current.getMovementVector();
+            const kbShoot = inputRef.current.getShootingDirection();
+            
+            // Merge Joystick and Keyboard Input
+            // Priority: Keyboard if pressed, otherwise Joystick
+            const move = {
+                x: (Math.abs(kbMove.x) > 0 ? kbMove.x : joystickMoveRef.current.x),
+                y: (Math.abs(kbMove.y) > 0 ? kbMove.y : joystickMoveRef.current.y)
+            };
+            
+            const shoot = (kbShoot && (Math.abs(kbShoot.x) > 0 || Math.abs(kbShoot.y) > 0)) 
+                          ? kbShoot 
+                          : (Math.abs(joystickShootRef.current.x) > 0.2 || Math.abs(joystickShootRef.current.y) > 0.2) // Deadzone for shooting
+                              ? joystickShootRef.current 
+                              : null;
+
             const restart = inputRef.current.isRestartPressed();
             const pause = inputRef.current.isPausePressed();
             
-            // Pass restart logic to engine
+            // Pass logic to engine
             engineRef.current.update({ move, shoot, restart, pause });
         }
         engineRef.current.draw();
@@ -230,12 +354,14 @@ export default function App() {
              // 0: Language
              // 1: Minimap
              // 2: Fullscreen
-             // 3-13: Key bindings (Grid)
-             // 14: Close
+             // 3: Joysticks
+             // 4-14: Key bindings (Grid)
+             // 15: Close
              
              const keyList = Object.keys(settings.keyMap) as (keyof KeyMap)[];
              const keyCount = keyList.length; // 11
-             const closeIndex = 3 + keyCount; // 14
+             const startKeyIdx = 4;
+             const closeIndex = startKeyIdx + keyCount; // 15
              
              const scrollToItem = (idx: number) => {
                  const el = document.getElementById(`setting-item-${idx}`);
@@ -246,10 +372,10 @@ export default function App() {
                  setSettingsSelection(prev => {
                      let next = prev;
                      if (prev <= 0) next = 0;
-                     else if (prev <= 2) next = prev - 1;
-                     else if (prev === 3 || prev === 4) next = 2; // From first row of keys to fullscreen
+                     else if (prev <= 3) next = prev - 1;
+                     else if (prev === startKeyIdx || prev === startKeyIdx + 1) next = 3; // From first row of keys to Joysticks
                      else if (prev <= closeIndex - 1) next = prev - 2; // Grid logic up
-                     else next = 13; // From Close to last key (Toggle Fullscreen)
+                     else next = 14; // From Close to last key
                      
                      scrollToItem(next);
                      return next;
@@ -257,8 +383,8 @@ export default function App() {
              } else if (e.key === 'ArrowDown') {
                  setSettingsSelection(prev => {
                      let next = prev;
-                     if (prev < 2) next = prev + 1;
-                     else if (prev === 2) next = 3;
+                     if (prev < 3) next = prev + 1;
+                     else if (prev === 3) next = startKeyIdx;
                      else if (prev + 2 < closeIndex) next = prev + 2; // Grid logic down
                      else next = closeIndex; // To Close
                      
@@ -276,11 +402,10 @@ export default function App() {
                      setSettings(s => ({...s, showMinimap: !s.showMinimap}));
                  } else if (settingsSelection === 2) {
                      toggleFullScreen();
-                 } else if (settingsSelection >= 3 && settingsSelection < closeIndex) {
-                      // Grid move Left (only if even index relative to grid start?)
-                      // Keys are 3,4 ; 5,6. 
-                      // If Right Col (4,6,8...) -> Go Left (3,5,7...)
-                      const gridIdx = settingsSelection - 3;
+                 } else if (settingsSelection === 3) {
+                     setSettings(s => ({...s, enableJoysticks: !s.enableJoysticks}));
+                 } else if (settingsSelection >= startKeyIdx && settingsSelection < closeIndex) {
+                      const gridIdx = settingsSelection - startKeyIdx;
                       if (gridIdx % 2 !== 0) setSettingsSelection(prev => prev - 1);
                  }
              } else if (e.key === 'ArrowRight') {
@@ -294,9 +419,10 @@ export default function App() {
                      setSettings(s => ({...s, showMinimap: !s.showMinimap}));
                  } else if (settingsSelection === 2) {
                      toggleFullScreen();
-                 } else if (settingsSelection >= 3 && settingsSelection < closeIndex) {
-                      // Grid move Right
-                      const gridIdx = settingsSelection - 3;
+                 } else if (settingsSelection === 3) {
+                     setSettings(s => ({...s, enableJoysticks: !s.enableJoysticks}));
+                 } else if (settingsSelection >= startKeyIdx && settingsSelection < closeIndex) {
+                      const gridIdx = settingsSelection - startKeyIdx;
                       if (gridIdx % 2 === 0 && settingsSelection + 1 < closeIndex) setSettingsSelection(prev => prev + 1);
                  }
              } else if (e.key === 'Enter') {
@@ -310,9 +436,11 @@ export default function App() {
                      setSettings(s => ({...s, showMinimap: !s.showMinimap}));
                  } else if (settingsSelection === 2) {
                      toggleFullScreen();
-                 } else if (settingsSelection >= 3 && settingsSelection < closeIndex) {
+                 } else if (settingsSelection === 3) {
+                     setSettings(s => ({...s, enableJoysticks: !s.enableJoysticks}));
+                 } else if (settingsSelection >= startKeyIdx && settingsSelection < closeIndex) {
                      // Rebind
-                     const keyIndex = settingsSelection - 3;
+                     const keyIndex = settingsSelection - startKeyIdx;
                      const keyName = keyList[keyIndex];
                      setWaitingForKey(keyName);
                  } else if (settingsSelection === closeIndex) {
@@ -366,7 +494,7 @@ export default function App() {
       
       window.addEventListener('keydown', handleMenuNav);
       return () => window.removeEventListener('keydown', handleMenuNav);
-  }, [status, showSettings, menuSelection, settingsSelection, settings.keyMap, settings.language, waitingForKey, selectedCharIndex]);
+  }, [status, showSettings, menuSelection, settingsSelection, settings.keyMap, settings.language, waitingForKey, selectedCharIndex, settings.enableJoysticks]);
 
   const startGame = () => {
     if (engineRef.current) {
@@ -453,7 +581,7 @@ export default function App() {
       
       {/* HUD (Show in Playing and Paused) */}
       {(status === GameStatus.PLAYING || status === GameStatus.PAUSED) && gameStats && (
-        <div className="w-full max-w-3xl flex justify-between items-start mb-2 px-4 h-24">
+        <div className="w-full max-w-3xl flex justify-between items-start mb-2 px-4 h-24 pointer-events-none z-10">
           <div className="flex flex-col justify-end h-full">
             <div className="text-xs text-gray-400 mb-1">{t('HEALTH')}</div>
             {renderHearts()}
@@ -479,7 +607,7 @@ export default function App() {
       )}
 
       {/* Game Container Wrapper for Relative Positioning */}
-      <div className="relative group flex">
+      <div className="relative group flex flex-col items-center">
         
         {/* SIDEBAR STATS (In Game) */}
         {(status === GameStatus.PLAYING || status === GameStatus.PAUSED) && gameStats?.stats && (
@@ -561,7 +689,7 @@ export default function App() {
               <div className="text-white font-bold text-xl drop-shadow-md">{t('HOLD_R')}</div>
            </div>
         )}
-        
+
         {/* PAUSE MENU OVERLAY */}
         {status === GameStatus.PAUSED && !showSettings && (
            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-8 z-50">
@@ -759,7 +887,7 @@ export default function App() {
                 </div>
 
                 {/* Full Screen (Index 2) */}
-                <div id="setting-item-2" className={`mb-6 flex items-center justify-between p-2 rounded transition-colors ${settingsSelection === 2 ? 'bg-white/10 border border-amber-500' : 'border border-transparent'}`}>
+                <div id="setting-item-2" className={`mb-4 flex items-center justify-between p-2 rounded transition-colors ${settingsSelection === 2 ? 'bg-white/10 border border-amber-500' : 'border border-transparent'}`}>
                     <label className="text-gray-400 text-sm">{t('SETTING_FULLSCREEN')}</label>
                     <button 
                         onClick={() => {
@@ -772,12 +900,26 @@ export default function App() {
                     </button>
                 </div>
 
-                {/* Key Bindings (Index 3+) */}
+                 {/* Virtual Joysticks (Index 3) */}
+                 <div id="setting-item-3" className={`mb-6 flex items-center justify-between p-2 rounded transition-colors ${settingsSelection === 3 ? 'bg-white/10 border border-amber-500' : 'border border-transparent'}`}>
+                    <label className="text-gray-400 text-sm">{t('SETTING_JOYSTICKS')}</label>
+                    <button 
+                        onClick={() => {
+                            setSettings(s => ({...s, enableJoysticks: !s.enableJoysticks}));
+                            setSettingsSelection(3);
+                        }}
+                        className={`w-12 h-6 rounded-full p-1 transition-colors ${settings.enableJoysticks ? 'bg-green-600' : 'bg-gray-700'}`}
+                    >
+                        <div className={`w-4 h-4 rounded-full bg-white transform transition-transform ${settings.enableJoysticks ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+
+                {/* Key Bindings (Index 4+) */}
                 <h3 className="text-lg font-bold text-white mb-2 border-b border-gray-700 pb-1">{t('SETTING_KEYS')}</h3>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                     {Object.keys(DEFAULT_KEYMAP).map((key, i) => {
                        const mapKey = key as keyof KeyMap;
-                       const idx = 3 + i;
+                       const idx = 4 + i;
                        const isSelected = settingsSelection === idx;
                        
                        return (
@@ -805,9 +947,9 @@ export default function App() {
              {waitingForKey && <div className="mt-4 text-amber-400 font-bold animate-bounce">{t('WAITING_FOR_KEY')}</div>}
 
              <button 
-                id={`setting-item-${3 + Object.keys(DEFAULT_KEYMAP).length}`}
+                id={`setting-item-${4 + Object.keys(DEFAULT_KEYMAP).length}`}
                 onClick={() => setShowSettings(false)}
-                className={`mt-6 px-8 py-2 font-bold transition-colors ${settingsSelection === (3 + Object.keys(DEFAULT_KEYMAP).length) ? 'bg-amber-500 text-black' : 'bg-white text-black hover:bg-gray-200'}`}
+                className={`mt-6 px-8 py-2 font-bold transition-colors ${settingsSelection === (4 + Object.keys(DEFAULT_KEYMAP).length) ? 'bg-amber-500 text-black' : 'bg-white text-black hover:bg-gray-200'}`}
              >
                 {t('CLOSE')}
              </button>
@@ -832,6 +974,14 @@ export default function App() {
           </div>
         )}
       </div>
+      
+      {/* VIRTUAL JOYSTICKS (Located below the canvas container) */}
+      {status === GameStatus.PLAYING && settings.enableJoysticks && (
+          <div className="w-full max-w-[720px] flex justify-between px-8 py-6 mt-2">
+              <VirtualJoystick label="MOVE" onMove={(v) => joystickMoveRef.current = v} color="#3b82f6" />
+              <VirtualJoystick label="SHOOT" onMove={(v) => joystickShootRef.current = v} color="#ef4444" />
+          </div>
+      )}
     </div>
   );
 }

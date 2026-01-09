@@ -10,6 +10,7 @@ import { AssetLoader } from './assets';
 // Import Configurations
 import { ENEMIES, BOSSES } from './config/enemies';
 import { ITEMS, DROPS, ItemConfig } from './config/items';
+import { CHARACTERS } from './config/characters';
 import { OBSTACLES } from './config/obstacles';
 
 export class GameEngine {
@@ -37,6 +38,9 @@ export class GameEngine {
   // Pause Logic
   pauseLocked: boolean = false;
 
+  // Selected Character
+  characterId: string = 'alpha';
+
   // Callback to sync React UI
   onUiUpdate: (stats: any) => void;
 
@@ -49,14 +53,15 @@ export class GameEngine {
     this.canvas.height = CONSTANTS.CANVAS_HEIGHT;
 
     // Default Player
-    this.player = this.createPlayer();
+    this.player = this.createPlayer('alpha');
   }
 
-  startNewGame() {
+  startNewGame(characterId: string = 'alpha') {
+    this.characterId = characterId;
     this.floorLevel = 1;
     this.score = 0;
     this.baseSeed = Date.now(); // Initial random seed for the run
-    this.player = this.createPlayer();
+    this.player = this.createPlayer(characterId);
     this.loadFloor(1);
     this.status = GameStatus.PLAYING;
     this.restartTimer = 0;
@@ -68,14 +73,11 @@ export class GameEngine {
       }
   }
 
-  createPlayer(): PlayerEntity {
-    // STATS ADJUSTMENT
-    // Speed: 0.36 * 4 = 1.44
-    // FireRate (Cooldown): 222 / 4 = 55.5
-    // ShotSpeed: 0.63 * 4 = 2.52
-    // Range: 200 * 2 = 400
-    // Knockback: 10 * 0.1 = 1
-    
+  createPlayer(characterId: string): PlayerEntity {
+    // Find character config
+    const config = CHARACTERS.find(c => c.id === characterId) || CHARACTERS[0];
+    const s = config.baseStats;
+
     return {
       id: 'player',
       type: EntityType.PLAYER,
@@ -85,20 +87,9 @@ export class GameEngine {
       h: CONSTANTS.PLAYER_SIZE,
       velocity: { x: 0, y: 0 },
       knockbackVelocity: { x: 0, y: 0 },
-      color: CONSTANTS.COLORS.PLAYER,
+      color: config.color,
       markedForDeletion: false,
-      stats: {
-        hp: 6, // 3 Hearts
-        maxHp: 6,
-        speed: 1.44,       
-        damage: 3.5,
-        fireRate: 55,      
-        shotSpeed: 2.52,   
-        range: 400,        
-        shotSpread: 1,
-        bulletScale: 1,
-        knockback: 1 // Reduced to 10%
-      },
+      stats: { ...s }, // Clone stats
       cooldown: 0,
       invincibleTimer: 0,
       inventory: []
@@ -509,7 +500,7 @@ export class GameEngine {
     if (input.restart) {
         this.restartTimer++;
         if (this.restartTimer > 60) { // 1 second hold
-            this.startNewGame();
+            this.startNewGame(this.characterId); // Restart with current char
             this.notification = "NOTIF_RESTART"; // Translation Key
             this.notificationTimer = 120;
         }
@@ -1204,7 +1195,17 @@ export class GameEngine {
           let spriteKey = '';
           
           // Match Entity Type to Asset
-          if (e.type === EntityType.PLAYER) spriteKey = 'PLAYER';
+          if (e.type === EntityType.PLAYER) {
+              // Map character ID to sprite via config lookup if possible, 
+              // BUT to avoid slow lookups every frame, we rely on the `createPlayer` 
+              // selecting a visual strategy.
+              // For now, we look up the character config based on ID stored in player?
+              // The player object doesn't store 'characterId'. 
+              // Let's modify logic: The `GameEngine` knows `this.characterId`.
+              // We can find the sprite from config.
+              const charConfig = CHARACTERS.find(c => c.id === this.characterId);
+              spriteKey = charConfig ? charConfig.sprite : 'PLAYER';
+          }
           else if (e.type === EntityType.ITEM) {
                // Map item type to sprite via config (simplified)
                const conf = ITEMS.find(i => i.type === (e as ItemEntity).itemType) || DROPS.find(d => d.type === (e as ItemEntity).itemType);

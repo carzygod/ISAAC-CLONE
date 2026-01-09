@@ -3,6 +3,8 @@ import { GameEngine } from './game';
 import { InputManager } from './utils';
 import { GameStatus, Settings, Language, KeyMap, Stats } from './types';
 import { CONSTANTS, TRANSLATIONS, DEFAULT_KEYMAP } from './constants';
+import { CHARACTERS } from './config/characters';
+import { AssetLoader } from './assets';
 
 const PixelHeart: React.FC<{ full: boolean }> = ({ full }) => (
     <svg viewBox="0 0 16 16" className="w-6 h-6 mr-1 drop-shadow-md" style={{imageRendering: 'pixelated'}}>
@@ -13,11 +15,48 @@ const PixelHeart: React.FC<{ full: boolean }> = ({ full }) => (
     </svg>
 );
 
+const StatBar: React.FC<{ label: string, value: number, max: number, color: string }> = ({ label, value, max, color }) => (
+    <div className="flex items-center gap-2 w-full text-xs">
+        <span className="w-10 text-gray-400 font-bold">{label}</span>
+        <div className="flex-1 h-2 bg-gray-800 rounded overflow-hidden">
+            <div 
+                className="h-full transition-all duration-300"
+                style={{ width: `${Math.min(100, (value / max) * 100)}%`, backgroundColor: color }}
+            />
+        </div>
+        <span className="w-6 text-right text-gray-300">{value}</span>
+    </div>
+);
+
+// Preview component that draws the actual game asset
+const SpritePreview: React.FC<{ spriteName: string, assetLoader: AssetLoader }> = ({ spriteName, assetLoader }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const source = assetLoader.get(spriteName);
+        if (canvas && source) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.imageSmoothingEnabled = false;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                // Draw scaled up 4x
+                ctx.drawImage(source, 0, 0, source.width, source.height, 0, 0, canvas.width, canvas.height);
+            }
+        }
+    }, [spriteName, assetLoader]);
+
+    return <canvas ref={canvasRef} width={128} height={128} className="w-24 h-24" style={{imageRendering: 'pixelated'}} />;
+};
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const inputRef = useRef<InputManager | null>(null);
   const requestRef = useRef<number>(0);
+
+  // Memoize asset loader for UI previews so we don't recreate it
+  const uiAssetLoader = useMemo(() => new AssetLoader(), []);
 
   // Game Data State
   const [gameStats, setGameStats] = useState<{
@@ -38,7 +77,8 @@ export default function App() {
   const [status, setStatus] = useState<GameStatus>(GameStatus.MENU);
   const [showSettings, setShowSettings] = useState(false);
   const [waitingForKey, setWaitingForKey] = useState<keyof KeyMap | null>(null);
-  const [menuSelection, setMenuSelection] = useState(0); // 0: Resume, 1: Settings, 2: Restart
+  const [menuSelection, setMenuSelection] = useState(0); 
+  const [selectedCharIndex, setSelectedCharIndex] = useState(0);
 
   // Settings State
   const [settings, setSettings] = useState<Settings>({
@@ -74,13 +114,16 @@ export default function App() {
 
     const loop = () => {
       if (engineRef.current && inputRef.current) {
-        const move = inputRef.current.getMovementVector();
-        const shoot = inputRef.current.getShootingDirection();
-        const restart = inputRef.current.isRestartPressed();
-        const pause = inputRef.current.isPausePressed();
-        
-        // Pass restart logic to engine
-        engineRef.current.update({ move, shoot, restart, pause });
+        // Prevent game input when in Menu
+        if (engineRef.current.status === GameStatus.PLAYING) {
+            const move = inputRef.current.getMovementVector();
+            const shoot = inputRef.current.getShootingDirection();
+            const restart = inputRef.current.isRestartPressed();
+            const pause = inputRef.current.isPausePressed();
+            
+            // Pass restart logic to engine
+            engineRef.current.update({ move, shoot, restart, pause });
+        }
         engineRef.current.draw();
       }
       requestRef.current = requestAnimationFrame(loop);
@@ -133,17 +176,44 @@ export default function App() {
 
   // Menu Navigation Listener
   useEffect(() => {
-      if (status !== GameStatus.PAUSED || showSettings) return;
+      if (showSettings) return;
+      if (status !== GameStatus.MENU && status !== GameStatus.CHARACTER_SELECT && status !== GameStatus.PAUSED) return;
 
       const handleMenuNav = (e: KeyboardEvent) => {
-          if (e.key === 'ArrowUp') {
-              setMenuSelection(prev => (prev - 1 + 3) % 3);
-          } else if (e.key === 'ArrowDown') {
-              setMenuSelection(prev => (prev + 1) % 3);
-          } else if (e.key === 'Enter') {
-              if (menuSelection === 0) resumeGame();
-              else if (menuSelection === 1) setShowSettings(true);
-              else if (menuSelection === 2) startGame();
+          if (status === GameStatus.MENU) {
+              if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                  setMenuSelection(prev => (prev === 0 ? 1 : 0));
+              } else if (e.key === 'Enter') {
+                  if (menuSelection === 0) setStatus(GameStatus.CHARACTER_SELECT);
+                  else if (menuSelection === 1) setShowSettings(true);
+              }
+          } 
+          else if (status === GameStatus.CHARACTER_SELECT) {
+              if (e.key === 'ArrowLeft' || e.key === 'KeyA') {
+                  setSelectedCharIndex(prev => (prev - 1 + CHARACTERS.length) % CHARACTERS.length);
+              }
+              else if (e.key === 'ArrowRight' || e.key === 'KeyD') {
+                  setSelectedCharIndex(prev => (prev + 1) % CHARACTERS.length);
+              }
+              else if (e.key === 'Enter') {
+                  startGame();
+              }
+              else if (e.key === 'Escape') {
+                  setStatus(GameStatus.MENU);
+              }
+          }
+          else if (status === GameStatus.PAUSED) {
+              if (e.key === 'ArrowUp') {
+                  setMenuSelection(prev => (prev - 1 + 3) % 3);
+              } else if (e.key === 'ArrowDown') {
+                  setMenuSelection(prev => (prev + 1) % 3);
+              } else if (e.key === 'Enter') {
+                  if (menuSelection === 0) resumeGame();
+                  else if (menuSelection === 1) setShowSettings(true);
+                  else if (menuSelection === 2) {
+                      setStatus(GameStatus.MENU); // Quit to Menu
+                  }
+              }
           }
       };
       
@@ -153,10 +223,9 @@ export default function App() {
 
   const startGame = () => {
     if (engineRef.current) {
-      engineRef.current.startNewGame();
+      engineRef.current.startNewGame(CHARACTERS[selectedCharIndex].id);
       setStatus(GameStatus.PLAYING);
       setShowSettings(false);
-      setMenuSelection(0);
       canvasRef.current?.focus();
     }
   };
@@ -171,7 +240,6 @@ export default function App() {
   const copySeed = () => {
       if (gameStats?.seed) {
           navigator.clipboard.writeText(gameStats.seed.toString());
-          // Optional: Show quick feedback
       }
   };
 
@@ -231,6 +299,8 @@ export default function App() {
       );
   };
 
+  const selectedChar = CHARACTERS[selectedCharIndex];
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-900 text-white font-mono select-none">
       
@@ -264,7 +334,7 @@ export default function App() {
       {/* Game Container Wrapper for Relative Positioning */}
       <div className="relative group flex">
         
-        {/* SIDEBAR STATS */}
+        {/* SIDEBAR STATS (In Game) */}
         {(status === GameStatus.PLAYING || status === GameStatus.PAUSED) && gameStats?.stats && (
             <div className="absolute -left-16 top-1/2 transform -translate-y-1/2 flex flex-col gap-2 bg-black/60 p-2 rounded-l border-y border-l border-gray-700 backdrop-blur-sm z-10">
                 <div className="flex items-center gap-2" title="Fire Rate">
@@ -383,7 +453,7 @@ export default function App() {
                        {t('SETTINGS')}
                    </button>
                    <button 
-                       onClick={startGame}
+                       onClick={() => setStatus(GameStatus.MENU)} // Quit to Menu
                        onMouseEnter={() => setMenuSelection(2)}
                        className={`px-6 py-3 font-bold text-xl transition-all duration-100 ${
                            menuSelection === 2 
@@ -391,7 +461,7 @@ export default function App() {
                            : 'bg-red-900/50 text-red-200 border border-red-800 hover:bg-red-900'
                        }`}
                    >
-                       {t('RESTART')}
+                       {t('KEY_PAUSE')}
                    </button>
                </div>
                
@@ -402,27 +472,102 @@ export default function App() {
            </div>
         )}
         
-        {/* Main Menu Overlay */}
+        {/* Main Menu (Title Screen) */}
         {status === GameStatus.MENU && !showSettings && (
-          <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-8 text-center z-40">
-            <h1 className="text-6xl font-black text-white mb-4 tracking-tighter">{t('GAME_TITLE')}</h1>
-            <p className="text-gray-400 mb-8 max-w-md text-sm">
-              {t('KEY_MOVE_UP')}/{t('KEY_MOVE_LEFT')}/{t('KEY_MOVE_DOWN')}/{t('KEY_MOVE_RIGHT')} <br/>
-              {t('KEY_SHOOT_UP')}/{t('KEY_SHOOT_LEFT')}/{t('KEY_SHOOT_DOWN')}/{t('KEY_SHOOT_RIGHT')}
-            </p>
-            <div className="flex flex-col gap-4">
+          <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-8 text-center z-40">
+            <h1 className="text-7xl font-black text-white mb-2 tracking-tighter drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">{t('GAME_TITLE')}</h1>
+            <p className="text-gray-500 text-sm mb-12 tracking-[0.5em]">PIXEL ROGUELIKE</p>
+            
+            <div className="flex flex-col gap-6 w-72">
               <button 
-                onClick={startGame}
-                className="px-8 py-3 bg-white text-black font-bold text-xl hover:bg-gray-200 active:scale-95 transition-transform"
+                onClick={() => setStatus(GameStatus.CHARACTER_SELECT)}
+                onMouseEnter={() => setMenuSelection(0)}
+                className={`px-8 py-4 font-bold text-xl transition-all duration-200 transform hover:scale-105 ${
+                    menuSelection === 0 
+                    ? 'bg-white text-black border-l-8 border-amber-500' 
+                    : 'bg-gray-900 text-gray-300 border-l-2 border-gray-700 hover:bg-gray-800'
+                }`}
               >
-                {t('START_RUN')}
+                {t('START_RUN').replace(' (↵)', '')}
               </button>
               <button 
                 onClick={() => setShowSettings(true)}
-                className="px-8 py-2 border border-gray-500 text-gray-300 font-bold hover:bg-gray-800 active:scale-95 transition-transform"
+                onMouseEnter={() => setMenuSelection(1)}
+                className={`px-8 py-3 font-bold transition-all duration-200 transform hover:scale-105 ${
+                    menuSelection === 1
+                    ? 'bg-white text-black border-l-8 border-amber-500' 
+                    : 'bg-gray-900 text-gray-500 border-l-2 border-gray-700 hover:bg-gray-800'
+                }`}
               >
                 {t('SETTINGS')}
               </button>
+            </div>
+            
+            <div className="absolute bottom-8 text-gray-700 text-xs">
+                v0.2.0-Alpha | Use Arrow Keys or Mouse
+            </div>
+          </div>
+        )}
+
+        {/* Character Selection Screen */}
+        {status === GameStatus.CHARACTER_SELECT && !showSettings && (
+          <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-8 text-center z-40">
+            <h2 className="text-3xl font-bold text-amber-500 mb-8 tracking-widest uppercase">{t('START_RUN')}</h2>
+            
+            <div className="flex items-center gap-12 mb-8">
+                {/* Left Arrow */}
+                <button 
+                    onClick={() => setSelectedCharIndex(prev => (prev - 1 + CHARACTERS.length) % CHARACTERS.length)}
+                    className="text-gray-600 hover:text-white text-6xl transition-colors"
+                >
+                    ‹
+                </button>
+
+                {/* Character Card */}
+                <div className="w-72 bg-gray-900 border-2 border-amber-500 rounded-xl p-6 flex flex-col items-center shadow-[0_0_30px_rgba(245,158,11,0.2)]">
+                    <div className="mb-6 relative">
+                        {/* Actual Sprite Preview */}
+                        <div className="rounded-full bg-gradient-to-b from-gray-800 to-black p-4 border-4 border-gray-700 shadow-inner">
+                             <SpritePreview spriteName={selectedChar.sprite} assetLoader={uiAssetLoader} />
+                        </div>
+                    </div>
+                    
+                    <h2 className="text-3xl font-bold text-white mb-2">{t(selectedChar.nameKey)}</h2>
+                    <p className="text-xs text-gray-400 mb-6 min-h-[2.5em] flex items-center justify-center italic px-2">
+                        "{t(selectedChar.descKey)}"
+                    </p>
+                    
+                    <div className="w-full flex flex-col gap-2 bg-black/50 p-3 rounded-lg border border-white/5">
+                        <StatBar label={t('STAT_HP')} value={selectedChar.baseStats.maxHp} max={12} color="#ef4444" />
+                        <StatBar label={t('STAT_SPEED')} value={selectedChar.baseStats.speed} max={2.5} color="#3b82f6" />
+                        <StatBar label={t('STAT_DMG')} value={selectedChar.baseStats.damage} max={8} color="#eab308" />
+                        <StatBar label={t('STAT_RATE')} value={100 - selectedChar.baseStats.fireRate} max={100} color="#a855f7" />
+                        <StatBar label={t('STAT_RANGE')} value={selectedChar.baseStats.range} max={800} color="#22c55e" />
+                    </div>
+                </div>
+
+                {/* Right Arrow */}
+                <button 
+                    onClick={() => setSelectedCharIndex(prev => (prev + 1) % CHARACTERS.length)}
+                    className="text-gray-600 hover:text-white text-6xl transition-colors"
+                >
+                    ›
+                </button>
+            </div>
+
+            <div className="flex gap-4">
+                <button 
+                    onClick={() => setStatus(GameStatus.MENU)}
+                    className="px-6 py-2 border border-gray-700 text-gray-500 hover:text-white hover:border-gray-500 rounded transition-colors"
+                >
+                    BACK (ESC)
+                </button>
+                <button 
+                    onClick={startGame}
+                    className="px-10 py-2 bg-amber-600 text-white font-bold rounded shadow-lg hover:bg-amber-500 transition-transform active:scale-95"
+                >
+                    START (ENTER)
+                </button>
             </div>
           </div>
         )}
@@ -500,7 +645,7 @@ export default function App() {
               {t('SCORE')}: {gameStats?.score}
             </p>
             <button 
-              onClick={startGame}
+              onClick={startGame} // Note: This restarts with the PREVIOUSLY selected character stored in engine or state
               className="px-8 py-3 bg-red-500 text-white font-bold text-xl hover:bg-red-400 active:scale-95 transition-transform"
             >
               {t('TRY_AGAIN')}

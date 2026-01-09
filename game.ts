@@ -387,6 +387,48 @@ export class GameEngine {
       this.entities.push(td);
   }
 
+  // Generate current state for UI (shared between Pause/Playing)
+  getUiState() {
+      // Logic for Item Inspection (Nearby items)
+      let nearbyItem = null;
+      // Only detect if current room is valid
+      if (this.currentRoom) {
+          let closestDist = 80; // Inspection Radius
+          const cx = this.player.x + this.player.w/2;
+          const cy = this.player.y + this.player.h/2;
+          
+          for (const e of this.entities) {
+             if (e.type === EntityType.ITEM && !e.markedForDeletion) {
+                 const ecx = e.x + e.w/2;
+                 const ecy = e.y + e.h/2;
+                 const d = Math.sqrt(Math.pow(ecx - cx, 2) + Math.pow(ecy - cy, 2));
+                 
+                 if (d < closestDist) {
+                     closestDist = d;
+                     nearbyItem = {
+                         name: (e as ItemEntity).name,
+                         desc: (e as ItemEntity).description,
+                         x: e.x, y: e.y, w: e.w, h: e.h
+                     };
+                 }
+             }
+          }
+      }
+
+      return {
+          hp: this.player.stats.hp,
+          maxHp: this.player.stats.maxHp,
+          floor: this.floorLevel,
+          score: this.score,
+          items: this.player.inventory.length,
+          notification: this.notification,
+          dungeon: this.dungeon.map(r => ({x: r.x, y: r.y, type: r.type, visited: r.visited})),
+          currentRoomPos: this.currentRoom ? {x: this.currentRoom.x, y: this.currentRoom.y} : {x:0, y:0},
+          stats: this.player.stats,
+          nearbyItem
+      };
+  }
+
   update(input: { move: {x:number, y:number}, shoot: {x:number, y:number} | null, restart?: boolean, pause?: boolean }) {
     
     // Toggle Pause Logic
@@ -415,19 +457,9 @@ export class GameEngine {
         this.restartTimer = 0;
     }
 
-    // If PAUSED, we stop game logic updates but still need to sync UI for the Menu to appear
+    // If PAUSED, we stop game logic updates but still need to sync UI
     if (this.status === GameStatus.PAUSED) {
-        this.onUiUpdate({
-            hp: this.player.stats.hp,
-            maxHp: this.player.stats.maxHp,
-            floor: this.floorLevel,
-            score: this.score,
-            items: this.player.inventory.length,
-            notification: this.notification,
-            dungeon: this.dungeon.map(r => ({x: r.x, y: r.y, type: r.type, visited: r.visited})),
-            currentRoomPos: this.currentRoom ? {x: this.currentRoom.x, y: this.currentRoom.y} : {x:0, y:0},
-            stats: this.player.stats
-        });
+        this.onUiUpdate(this.getUiState());
         return;
     }
 
@@ -553,19 +585,7 @@ export class GameEngine {
     this.entities = this.entities.filter(e => !e.markedForDeletion);
 
     // Sync UI
-    this.onUiUpdate({
-        hp: this.player.stats.hp,
-        maxHp: this.player.stats.maxHp,
-        floor: this.floorLevel,
-        score: this.score,
-        items: this.player.inventory.length,
-        notification: this.notification, // Send notification key
-        // Minimap Data
-        dungeon: this.dungeon.map(r => ({x: r.x, y: r.y, type: r.type, visited: r.visited})),
-        currentRoomPos: this.currentRoom ? {x: this.currentRoom.x, y: this.currentRoom.y} : {x:0, y:0},
-        // Stats for Side Panel
-        stats: this.player.stats
-    });
+    this.onUiUpdate(this.getUiState());
   }
   
   applyPhysics(ent: Entity) {

@@ -30,6 +30,7 @@ export default function App() {
     dungeon: {x:number, y:number, type: string, visited: boolean}[];
     currentRoomPos: {x:number, y:number};
     stats?: Stats; // New Full Stats
+    nearbyItem?: { name: string, desc: string, x: number, y: number, w: number, h: number } | null;
   } | null>(null);
   
   const [status, setStatus] = useState<GameStatus>(GameStatus.MENU);
@@ -280,6 +281,24 @@ export default function App() {
                   {t(gameStats.notification)}
               </div>
            </div>
+        )}
+
+        {/* Item Inspection Tooltip */}
+        {gameStats?.nearbyItem && (status === GameStatus.PLAYING || status === GameStatus.PAUSED) && (
+            <div className="absolute z-20 pointer-events-none flex flex-col items-center text-center transition-all duration-200"
+                 style={{
+                     left: gameStats.nearbyItem.x + gameStats.nearbyItem.w/2,
+                     top: gameStats.nearbyItem.y - 40,
+                     transform: 'translateX(-50%)'
+                 }}
+            >
+                <div className="bg-black/90 text-white text-xs px-2 py-1 rounded border border-gray-600 shadow-xl whitespace-nowrap backdrop-blur-sm">
+                    <div className="font-bold text-amber-400 mb-0.5">{t(gameStats.nearbyItem.name)}</div>
+                    <div className="text-[10px] text-gray-300">{t(gameStats.nearbyItem.desc)}</div>
+                </div>
+                {/* Triangle Pointer */}
+                <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[4px] border-t-black/90"></div>
+            </div>
         )}
         
         {/* RESTART HINT OVERLAY */}

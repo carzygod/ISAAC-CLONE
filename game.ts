@@ -239,16 +239,54 @@ export class GameEngine {
     // Filter valid enemies for this floor
     const validEnemies = ENEMIES.filter(e => e.minFloor <= this.floorLevel);
 
-    for (let i = 0; i < count; i++) {
-        const ex = CONSTANTS.TILE_SIZE * 2 + rng.next() * (CONSTANTS.CANVAS_WIDTH - CONSTANTS.TILE_SIZE * 4);
-        const ey = CONSTANTS.TILE_SIZE * 2 + rng.next() * (CONSTANTS.CANVAS_HEIGHT - CONSTANTS.TILE_SIZE * 4);
-        
-        // Don't spawn on top of player
-        if (distance({x: ex, y: ey}, this.player) < 150) continue;
+    const checkTileBlocked = (x: number, y: number, size: number): boolean => {
+       const ts = CONSTANTS.TILE_SIZE;
+       // Check 4 corners of the potential bounding box to ensure it doesn't overlap a wall
+       const corners = [
+           {x, y},
+           {x: x+size, y},
+           {x, y: y+size},
+           {x: x+size, y: y+size}
+       ];
 
-        // Select Enemy Config based on weight
+       for (const p of corners) {
+           const cx = Math.floor(p.x / ts);
+           const cy = Math.floor(p.y / ts);
+           // Safety bounds check
+           if (cy < 0 || cy >= room.layout.length || cx < 0 || cx >= room.layout[0].length) return true;
+           
+           const tile = room.layout[cy][cx];
+           // 1 = Wall, 2 = Rock. If either is present, it's blocked.
+           if (tile === 1 || tile === 2) return true;
+       }
+       return false;
+    };
+
+    for (let i = 0; i < count; i++) {
+        // Try up to 10 times to find a valid non-overlapping spot
+        let ex = 0;
+        let ey = 0;
+        let valid = false;
+        
+        // Select Enemy Config first to get size
         const config = rng.weightedChoice(validEnemies);
         if (!config) continue;
+
+        for (let attempt = 0; attempt < 10; attempt++) {
+             ex = CONSTANTS.TILE_SIZE * 2 + rng.next() * (CONSTANTS.CANVAS_WIDTH - CONSTANTS.TILE_SIZE * 4);
+             ey = CONSTANTS.TILE_SIZE * 2 + rng.next() * (CONSTANTS.CANVAS_HEIGHT - CONSTANTS.TILE_SIZE * 4);
+
+             // 1. Check Distance to Player
+             if (distance({x: ex, y: ey}, this.player) < 150) continue;
+
+             // 2. Check Map Collisions (Walls/Rocks)
+             if (checkTileBlocked(ex, ey, config.size)) continue;
+
+             valid = true;
+             break;
+        }
+
+        if (!valid) continue; // Skip if couldn't find a spot
 
         const hp = config.hpBase + (this.floorLevel * config.hpPerLevel);
 
@@ -267,6 +305,7 @@ export class GameEngine {
             aiState: 'IDLE',
             timer: 0,
             orbitAngle: rng.next() * Math.PI * 2,
+            flying: config.flying,
             stats: {
                 speed: config.speed,
                 damage: config.damage,
@@ -299,6 +338,7 @@ export class GameEngine {
           maxHp: hp,
           aiState: 'IDLE',
           timer: 0,
+          flying: config.flying,
           stats: {
               speed: config.speed,
               damage: config.damage,
@@ -964,6 +1004,8 @@ export class GameEngine {
       // Predict next position
       const nextX = ent.x + ent.velocity.x;
       const nextY = ent.y + ent.velocity.y;
+      
+      const isFlying = (ent.type === EntityType.ENEMY) && (ent as EnemyEntity).flying;
 
       // Check Feet Box against the tile map
       const checkCollision = (rect: Rect) => {
@@ -982,8 +1024,8 @@ export class GameEngine {
               const tile = map[r][c];
               
               // 1 = Wall, 2 = Rock (Obstacle)
-              // We check config if needed, but currently IDs are fixed in dungeon generation
-              if (tile === 1 || tile === 2) return true;
+              // If entity is flying, they ignore rocks (2) but not walls (1)
+              if (tile === 1 || (!isFlying && tile === 2)) return true;
           }
           return false;
       };
@@ -1203,7 +1245,11 @@ export class GameEngine {
                   }
               }
 
-              // --- REMOVED BOSS HP BAR DRAWING FROM HERE ---
+              // Draw Boss HP Bar
+              if (e.type === EntityType.ENEMY && (e as EnemyEntity).enemyType === EnemyType.BOSS) {
+                 this.ctx.fillStyle = 'red';
+                 this.ctx.fillRect(e.x, e.y - 10, e.w * ((e as EnemyEntity).hp / (e as EnemyEntity).maxHp), 5);
+              }
           } else if (e.type === EntityType.TRAPDOOR) {
               this.ctx.fillStyle = CONSTANTS.PALETTE.DOOR_LOCKED;
               this.ctx.fillRect(e.x, e.y, e.w, e.h);

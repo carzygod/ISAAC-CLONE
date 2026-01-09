@@ -21,6 +21,7 @@ export interface EnemyConfig {
   minFloor: number;
   ai: 'CHASE' | 'SHOOT' | 'DASHER' | 'TANK' | 'ORBIT' | 'BOSS';
   scoreValue: number;
+  flying: boolean; // Config property
 }
 
 export const ENEMIES: EnemyConfig[] = [
@@ -41,7 +42,8 @@ export const ENEMIES: EnemyConfig[] = [
     weight: 50,
     minFloor: 1,
     ai: 'CHASE',
-    scoreValue: 10
+    scoreValue: 10,
+    flying: true // Ghosts fly
   },
   {
     id: 'dasher',
@@ -60,7 +62,8 @@ export const ENEMIES: EnemyConfig[] = [
     weight: 15,
     minFloor: 1,
     ai: 'DASHER',
-    scoreValue: 15
+    scoreValue: 15,
+    flying: false // Dasher walks
   },
   {
     id: 'eye',
@@ -79,7 +82,8 @@ export const ENEMIES: EnemyConfig[] = [
     weight: 20,
     minFloor: 1,
     ai: 'SHOOT',
-    scoreValue: 15
+    scoreValue: 15,
+    flying: true // Eyes float
   },
   {
     id: 'orbiter',
@@ -98,7 +102,8 @@ export const ENEMIES: EnemyConfig[] = [
     weight: 10,
     minFloor: 2,
     ai: 'ORBIT',
-    scoreValue: 20
+    scoreValue: 20,
+    flying: true // Orbiters float
   },
   {
     id: 'tank',
@@ -117,7 +122,8 @@ export const ENEMIES: EnemyConfig[] = [
     weight: 5,
     minFloor: 1,
     ai: 'TANK',
-    scoreValue: 30
+    scoreValue: 30,
+    flying: false // Tanks are heavy
   }
 ];
 
@@ -139,6 +145,7 @@ export const BOSSES: EnemyConfig[] = [
     weight: 100,
     minFloor: 1,
     ai: 'BOSS',
-    scoreValue: 500
+    scoreValue: 500,
+    flying: true // Bosses usually fly/hover
   }
 ];

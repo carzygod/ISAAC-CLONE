@@ -126,6 +126,7 @@ export interface EnemyEntity extends Entity {
   aiState: 'IDLE' | 'CHASE' | 'ATTACK' | 'COOLDOWN';
   timer: number;
   orbitAngle?: number; // For Orbiter
+  flying: boolean; // New Property: Can fly over obstacles
   // Unified stats for enemies (Speed, Damage, etc.)
   stats: {
       speed: number;
